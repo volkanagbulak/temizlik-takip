@@ -1,36 +1,43 @@
-// src/components/Menu.jsx: import satırları ve bileşen
-import { Button, Flex, Menu as AntMenu } from "antd";
+// src/components/Menu.jsx
+import { Menu as AntMenu } from "antd";
+import {
+  AppstoreOutlined,
+  BarChartOutlined,
+  DashboardOutlined,
+  ExperimentOutlined,
+  FileTextOutlined,
+  PlusCircleOutlined,
+  ProfileOutlined,
+  ToolOutlined,
+} from "@ant-design/icons";
 import { useLocation, useNavigate } from "react-router-dom";
+
 const OPERATOR_MENU = [
-  { path: "/", label: "İşlerim" },
-  { path: "/records/new", label: "Yeni kayıt" },
-  { path: "/records", label: "Kayıtlar" },
+  { key: "/", label: "İşlerim", icon: <AppstoreOutlined /> },
+  { key: "/records/new", label: "Yeni kayıt", icon: <PlusCircleOutlined /> },
+  { key: "/records", label: "Kayıtlar", icon: <FileTextOutlined /> },
 ];
+
 const ADMIN_MENU = [
-  { path: "/control", label: "Kontrol paneli" },
-  { path: "/records", label: "Kayıtlar" },
-  { path: "/procedures", label: "Prosedürler" },
-  { path: "/machines", label: "Makineler" },
-  { path: "/materials", label: "Malzemeler" },
-  { path: "/reports", label: "Raporlar" },
+  { key: "/control", label: "Kontrol paneli", icon: <DashboardOutlined /> },
+  { key: "/records", label: "Kayıtlar", icon: <FileTextOutlined /> },
+  { key: "/procedures", label: "Prosedürler", icon: <ProfileOutlined /> },
+  { key: "/machines", label: "Makineler", icon: <ToolOutlined /> },
+  { key: "/materials", label: "Malzemeler", icon: <ExperimentOutlined /> },
+  { key: "/reports", label: "Raporlar", icon: <BarChartOutlined /> },
 ];
-export function Menu({ user, onLogout }) {
+
+export function Menu({ user }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const menu = user.role === "admin" ? ADMIN_MENU : OPERATOR_MENU;
-  const items = menu.map((item) => ({ key: item.path, label: item.label }));
 
   return (
-    <Flex align="center" gap={8}>
-      <AntMenu
-        theme="dark"
-        mode="horizontal"
-        items={items}
-        selectedKeys={[location.pathname]}
-        onClick={({ key }) => navigate(key)}
-        style={{ flex: 1, minWidth: 0 }}
-      />
-      <Button onClick={onLogout}>Çıkış</Button>
-    </Flex>
+    <AntMenu
+      mode="inline"
+      items={user.role === "admin" ? ADMIN_MENU : OPERATOR_MENU}
+      selectedKeys={[location.pathname]}
+      onClick={({ key }) => navigate(key)}
+      style={{ borderInlineEnd: 0 }}
+    />
   );
 }
