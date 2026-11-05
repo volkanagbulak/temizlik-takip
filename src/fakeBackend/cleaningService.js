@@ -29,17 +29,14 @@ export function makeRecordNo(db, facility, line, machine, category, now) {
   const prefix = `${facility.code}-${line.code}-${machine.code}-${yy}${mm}${dd}`;
   const count = db.records.filter((r) => r.no.startsWith(prefix)).length + 1;
   const order = String(count).padStart(2, "0");
-  return category === "emergency"
-    ? `${prefix}-AC${order}`
-    : `${prefix}-${order}`;
+  return category === "emergency" ? `${prefix}-AC${order}` : `${prefix}-${order}`;
 }
 
 // Normal temizliğin saha referansını sistem üretiyor. Acil kayıtlar saha defterine
 // işlenmediği için referansları yok.
 export function makeFieldRef(db, category, year) {
   if (category === "emergency") return null;
-  const count =
-    db.records.filter((r) => r.fieldRef?.startsWith(`SAHA-${year}`)).length + 1;
+  const count = db.records.filter((r) => r.fieldRef?.startsWith(`SAHA-${year}`)).length + 1;
   return `SAHA-${year}-${String(count).padStart(5, "0")}`;
 }
 
@@ -49,8 +46,7 @@ export function openRecord(db, user, form) {
   const machine = db.machines.find((m) => m.id === form.machineId);
   if (!machine || !machine.active) fail("Bu makine seçilemez.", 422);
   const procedure = db.procedures.find((p) => p.id === form.procedureId);
-  if (!procedure || !procedure.machineIds.includes(machine.id))
-    fail("Bu form bu makine için tanımlı değil.", 422);
+  if (!procedure || !procedure.machineIds.includes(machine.id)) fail("Bu form bu makine için tanımlı değil.", 422);
   // Yeni kayıt her zaman formun son versiyonuyla açılıyor.
   const version = procedure.versions.at(-1);
 
@@ -118,9 +114,7 @@ export function addMachine(db, user, form) {
     active: true,
   };
   db.machines.push(machine);
-  form.procedureIds?.forEach((id) =>
-    db.procedures.find((p) => p.id === id).machineIds.push(machine.id),
-  );
+  form.procedureIds?.forEach((id) => db.procedures.find((p) => p.id === id).machineIds.push(machine.id));
   addLog(db, user, null, "Makine eklendi", machine.code);
 }
 
@@ -128,11 +122,60 @@ export function addMachine(db, user, form) {
 export function setMachineActive(db, user, machineId, active) {
   const machine = db.machines.find((m) => m.id === machineId);
   machine.active = active;
-  addLog(
-    db,
-    user,
-    null,
-    active ? "Makine geri alındı" : "Makine kaldırıldı",
-    machine.code,
-  );
+  addLog(db, user, null, active ? "Makine geri alındı" : "Makine kaldırıldı", machine.code);
+}
+
+//temizlik aşamaları
+//güncel adımı bulma
+export function getCurrentStep(record) {
+  return record.steps.find((s) => s.status !== "done");
+}
+//Açık Adımı bulma
+export function getOpenStep(db, user, recordId, stepId) {
+  const record = db.records.find((r) => r.id === recordId);
+  if (!record) fail("Kayıt Bulunamadı", 404);
+  if (record.status === "completed" || record.status === "cancelled") fail("Bu Kayıt Kapalı", 409);
+  const step = record.steps.find((s) => s.stepId === stepId);
+  if (!step) fail("Adım Bulunamadı", 404);
+  return { record, step };
+}
+
+// Temizlik Adımı Başlatma
+export function startStep(db, user, recordId, stepId) {
+  const { record, step } = getOpenStep(db, user, recordId, stepId);
+  if (getCurrentStep(record).stepId !== stepId) fail("Bu adımlar sırayla yapılır.", 409);
+  if (step.status !== "pending") fail("Bu Adım Daha Önce Başlatılmış", 409);
+  const now = Date.now();
+  step.status = "running";
+  step.sessions.push({ start: now, end: null, people: [...step.people] });
+  if (record.status === "opened") {
+    record.status = "in_progress";
+    record.startedAt = now;
+  }
+  //adım logu
+  addLog(db, user, record.id, "Adım Başlatıldı", step.title);
+}
+
+// Temizlik Adımı Bitirme
+export function finishStep(db, user, recordId, stepId) {
+  const { record, step } = getOpenStep(db, user, recordId, stepId);
+  if (step.status !== "running") fail("Yanlızca çalışılan adım bitirilebilir", 409);
+  const now = Date.now();
+  step.sessions.at(-1).end = now;
+  step.status = "done";
+  addLog(db, user, record.id, "Adım tamamlandı", step.title);
+  if (record.steps.every((s) => s.status === "done")) {
+    record.status = "completed";
+    record.completedAt = now;
+    addLog(db, user, record.id, "temizlik Tamamlandı");
+  }
+}
+
+//Temizlik İçin Kişi Ekleme
+export function setStepPeople(db, user, recordId, stepId, userIds) {
+  const { record, step } = getOpenStep(db, user, recordId, stepId);
+  if (step.status === "done") fail("Biten Adım değiştirilmez", 409);
+  if (step.status === "running") fail("Önce adımı durdur", 409);
+  step.people = userIds;
+  addLog(db, user, record.id, "Adım görevlisi değiştirildi", step.title);
 }
