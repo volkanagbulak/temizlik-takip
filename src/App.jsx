@@ -8,6 +8,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { HomePage } from "./pages/HomePage";
 import { NewRecordPage } from "./pages/NewRecordPage";
 import { RecordsPage } from "./pages/RecordsPage";
+import { RunPage } from "./pages/RunPage";
 
 const SESSION_KEY = "currentUser";
 
@@ -43,26 +44,14 @@ export default function App() {
 
   return (
     <Routes>
-      <Route
-        path="/login"
-        element={
-          user ? (
-            <Navigate to={homePath(user)} replace />
-          ) : (
-            <LoginPage onLogin={handleLogin} />
-          )
-        }
-      />
+      <Route path="/login" element={user ? <Navigate to={homePath(user)} replace /> : <LoginPage onLogin={handleLogin} />} />
 
       <Route element={<AppLayout user={user} onLogout={handleLogout} />}>
         <Route path="/" element={<HomePage user={user} />} />
         <Route path="/records" element={<RecordsPage user={user} />} />
         <Route path="/records/new" element={<NewRecordPage user={user} />} />
         <Route path="/records/:recordId" element={<h1>Kayıt detayı</h1>} />
-        <Route
-          path="/records/:recordId/run"
-          element={<h1>Temizlik ekranı</h1>}
-        />
+        <Route path="/records/:recordId/run" element={<RunPage />} />
 
         <Route element={<AdminRoute user={user} />}>
           <Route path="/control" element={<h1>Kontrol paneli</h1>} />

@@ -131,7 +131,7 @@ export function getCurrentStep(record) {
   return record.steps.find((s) => s.status !== "done");
 }
 //Açık Adımı bulma
-export function getOpenStep(db, user, recordId, stepId) {
+function getOpenStep(db, user, recordId, stepId) {
   const record = db.records.find((r) => r.id === recordId);
   if (!record) fail("Kayıt Bulunamadı", 404);
   if (record.status === "completed" || record.status === "cancelled") fail("Bu Kayıt Kapalı", 409);
