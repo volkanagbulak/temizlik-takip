@@ -16,3 +16,5 @@ export const openRecordApi = (form) => post("/records", form);
 export const startStepApi = (id, stepId) => post(`/records/${id}/steps/${stepId}/start`);
 export const finishStepApi = (id, stepId, reason) => post(`/records/${id}/steps/${stepId}/finish`, { reason });
 export const setStepPeopleApi = (id, stepId, userIds) => post(`/records/${id}/steps/${stepId}/people`, { userIds });
+export const pauseStepApi = (id, stepId, reason) => post(`/records/${id}/steps/${stepId}/pause`, { reason });
+export const resumeStepApi = (id, stepId) => post(`/records/${id}/steps/${stepId}/resume`);

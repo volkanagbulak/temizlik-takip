@@ -1,4 +1,5 @@
 // src/fakeBackend/cleaningService.js
+import { phaseStats } from "../utils/time";
 // Bu dosya backend'in vereceği cevapları taklit ediyor. Boş alan gibi kontroller formda,
 // makine, yetki ve adım sırası gibi kurallar burada. Doküman yalnızca ekran kontrolünü
 // yeterli bulmuyor. Hata kodları: 403 yetki, 409 çakışma, 422 iş kuralı.
@@ -157,10 +158,20 @@ export function startStep(db, user, recordId, stepId) {
 }
 
 // Temizlik Adımı Bitirme
-export function finishStep(db, user, recordId, stepId) {
+export function finishStep(db, user, recordId, stepId, reason) {
   const { record, step } = getOpenStep(db, user, recordId, stepId);
-  if (step.status !== "running") fail("Yanlızca çalışılan adım bitirilebilir", 409);
+  if (step.status !== "running") fail("Yalnızca çalışılan adım bitirilebilir", 409);
   const now = Date.now();
+
+  const phase = record.procedure.phases.find((p) => p.id === step.phaseId);
+  const isLastInPhase = phase.steps.at(-1).id === stepId;
+  if (isLastInPhase) {
+    const stats = phaseStats(record, phase, now);
+    if (!stats.metMin) {
+      if (!reason?.trim()) fail("Minimum süre sağlanmadı", 422, "MIN_NOT_MET");
+      record.deviations.push({ phaseName: phase.name, workMs: stats.workMs, minMs: stats.minMs, reason, by: user.id, at: now });
+    }
+  }
   step.sessions.at(-1).end = now;
   step.status = "done";
   addLog(db, user, record.id, "Adım tamamlandı", step.title);
@@ -178,4 +189,23 @@ export function setStepPeople(db, user, recordId, stepId, userIds) {
   if (step.status === "running") fail("Önce adımı durdur", 409);
   step.people = userIds;
   addLog(db, user, record.id, "Adım görevlisi değiştirildi", step.title);
+}
+
+// adım durdurma
+export function pauseStep(db, user, recordId, stepId, reason) {
+  const { record, step } = getOpenStep(db, user, recordId, stepId);
+  if (step.status !== "running") fail("Yalnızca çalışan adım duraklatılır.", 409);
+  const now = Date.now();
+  step.sessions.at(-1).end = now;
+  step.status = "paused";
+  step.pauses.push({ at: now, reason });
+  addLog(db, user, record.id, "Adım duraklatıldı", `${step.title}: ${reason}`);
+}
+//adım devam ettirme
+export function resumeStep(db, user, recordId, stepId) {
+  const { record, step } = getOpenStep(db, user, recordId, stepId);
+  if (step.status !== "paused") fail("Bu adım duraklatılmış değil.", 409);
+  step.status = "running";
+  step.sessions.push({ start: Date.now(), end: null, people: [...step.people] });
+  addLog(db, user, record.id, "Adım sürdürüldü", step.title);
 }

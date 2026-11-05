@@ -42,6 +42,9 @@ const routes = [
   { method: "post", path: "/records/:id/steps/:stepId/start", run: (db, user, [id, stepId]) => cleaningService.startStep(db, user, id, stepId) },
   { method: "post", path: "/records/:id/steps/:stepId/finish", run: (db, user, [id, stepId], body) => cleaningService.finishStep(db, user, id, stepId, body.reason) },
   { method: "post", path: "/records/:id/steps/:stepId/people", run: (db, user, [id, stepId], body) => cleaningService.setStepPeople(db, user, id, stepId, body.userIds) },
+  // adım durdur devam et
+  { method: "post", path: "/records/:id/steps/:stepId/pause", run: (db, user, [id, stepId], body) => cleaningService.pauseStep(db, user, id, stepId, body.reason) },
+  { method: "post", path: "/records/:id/steps/:stepId/resume", run: (db, user, [id, stepId]) => cleaningService.resumeStep(db, user, id, stepId) },
 ];
 
 // axios isteği ağa çıkmadan buraya geliyor. Kural hata fırlatırsa saveDb çalışmıyor,

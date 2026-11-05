@@ -1,7 +1,6 @@
 // src/App.jsx
 import { useState } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
-import { setCurrentUser } from "./api/client";
 import { AppLayout } from "./components/AppLayout";
 import { AdminRoute } from "./components/AdminRoute";
 import { LoginPage } from "./pages/LoginPage";
@@ -16,10 +15,7 @@ const SESSION_KEY = "currentUser";
 // Aynı anda işlem yapan iki kişiyi iki sekmeyle bu sayede gösterebilirim.
 function loadSessionUser() {
   const text = sessionStorage.getItem(SESSION_KEY);
-  if (!text) return null;
-  const user = JSON.parse(text);
-  setCurrentUser(user.id); // yenilemeden sonra axios kullanıcıyı tekrar bilsin
-  return user;
+  return text ? JSON.parse(text) : null;
 }
 
 // Operatör ve yönetici aynı ekranla başlamasın.
@@ -31,7 +27,6 @@ export default function App() {
 
   function handleLogin(selected) {
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(selected));
-    setCurrentUser(selected.id);
     setUser(selected);
     navigate(homePath(selected));
   }
