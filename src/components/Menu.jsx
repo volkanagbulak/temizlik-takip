@@ -12,6 +12,7 @@ import {
 } from "@ant-design/icons";
 import { useLocation, useNavigate } from "react-router-dom";
 
+// Doküman operatör ile yöneticinin aynı şeyleri görmesini istemiyor, menüler role göre ayrı.
 const OPERATOR_MENU = [
   { key: "/", label: "İşlerim", icon: <AppstoreOutlined /> },
   { key: "/records/new", label: "Yeni kayıt", icon: <PlusCircleOutlined /> },

@@ -6,6 +6,7 @@ import { Menu } from "./Menu";
 
 const line = "1px solid #eceff1";
 
+// Tüm sayfaların ortak çerçevesi. Giriş yapmayan kişi buradan login ekranına dönüyor.
 export function AppLayout({ user, onLogout }) {
   if (!user) return <Navigate to="/login" replace />;
 

@@ -4,6 +4,7 @@ import { Button, Card, Flex, Layout, Tag, Typography } from "antd";
 import { SafetyCertificateOutlined } from "@ant-design/icons";
 import { getUsersApi } from "../api/cleaningApi";
 
+// Demoda şifre yok, kullanıcı seçiliyor. Böylece roller arasında hızlıca geçebiliyorum.
 export function LoginPage({ onLogin }) {
   const [users, setUsers] = useState([]);
 

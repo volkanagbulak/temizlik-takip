@@ -2,6 +2,8 @@
 import { loadDb, saveDb } from "./fakeDb";
 import * as cleaningService from "./cleaningService";
 
+// Gerçek projede bu adresleri backend verirdi. Burada hangi adresin hangi işi yaptığını
+// ben tanımlıyorum, sayfalar ise normal bir servise istek atıyormuş gibi çalışıyor.
 const routes = [
   {
     method: "get",
@@ -33,7 +35,30 @@ const routes = [
     run: (db, user, [id], body) =>
       cleaningService.setMachineActive(db, user, id, body.active),
   },
+  { method: "get", path: /^\/records$/, run: (db) => db.records },
+  {
+    method: "get",
+    path: /^\/records\/(\w+)$/,
+    run: (db, user, [id]) => ({
+      record: db.records.find((r) => r.id === id),
+      auditLog: db.auditLog.filter((l) => l.recordId === id),
+      users: db.users,
+      // Kaydın yapıldığı versiyon ile güncel versiyonu karşılaştırabilmek için.
+      latestVersion: db.procedures
+        .find((p) => p.id === db.records.find((r) => r.id === id).procedure.id)
+        .versions.at(-1).version,
+    }),
+  },
+  {
+    method: "post",
+    path: /^\/records$/,
+    run: (db, user, _params, body) =>
+      cleaningService.openRecord(db, user, body),
+  },
 ];
+
+// axios isteği ağa çıkmadan buraya geliyor. Kural hata fırlatırsa saveDb çalışmıyor,
+// yani yanlış bir değişiklik veriye yazılmıyor.
 export async function fakeAdapter(config) {
   const route = routes.find(
     (r) => r.method === config.method && r.path.test(config.url),

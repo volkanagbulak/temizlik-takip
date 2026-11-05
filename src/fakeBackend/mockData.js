@@ -1,4 +1,6 @@
 ///Dummy Mock Data
+// Demo bu veriyle açılıyor. Dokümanda makine ve formların önceden tanımlı olması,
+// kişinin rastgele seçim yapamaması isteniyor.
 export const mockData = {
   users: [
     { id: "user1", name: "Ahmet Yılmaz", role: "operator", active: true },
@@ -114,6 +116,7 @@ export const mockData = {
       active: true,
     },
   ],
+  // Malzemenin kodu, lotu ve son kullanma tarihi kayıtta geriye dönük görülebilmeli.
   materials: [
     {
       id: "material1",
@@ -137,6 +140,8 @@ export const mockData = {
       ],
     },
   ],
+  // machineIds hangi formun hangi makinede kullanılacağını belirliyor. Versiyonları ayrı
+  // tutuyorum, çünkü tanım değişse de eski kayıtlar o günkü hâlini göstermeli.
   procedures: [
     {
       id: "procedure1",
@@ -283,6 +288,7 @@ export const mockData = {
       ],
     },
     {
+      // Acil müdahaleler ayrı bir tür: saha defterine işlenmiyor, saha referansı almıyor.
       id: "procedure3",
       code: "AC-01",
       name: "Acil Müdahale Temizliği",

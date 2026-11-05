@@ -2,6 +2,7 @@
 import { Result } from "antd";
 import { Outlet } from "react-router-dom";
 
+// Bu yalnızca ekran kolaylığı. Asıl yetki kontrolü servis tarafında olacak.
 export function AdminRoute({ user }) {
   if (user?.role !== "admin") {
     return <Result status="403" title="Bu sayfa yönetici yetkisi ister." />;

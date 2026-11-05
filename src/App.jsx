@@ -5,9 +5,14 @@ import { setCurrentUser } from "./api/client";
 import { AppLayout } from "./components/AppLayout";
 import { AdminRoute } from "./components/AdminRoute";
 import { LoginPage } from "./pages/LoginPage";
+import { HomePage } from "./pages/HomePage";
+import { NewRecordPage } from "./pages/NewRecordPage";
+import { RecordsPage } from "./pages/RecordsPage";
 
 const SESSION_KEY = "currentUser";
 
+// Oturum sessionStorage içinde: sayfa yenilense de kalıyor, her sekme ayrı kullanıcı olabiliyor.
+// Aynı anda işlem yapan iki kişiyi iki sekmeyle bu sayede gösterebilirim.
 function loadSessionUser() {
   const text = sessionStorage.getItem(SESSION_KEY);
   if (!text) return null;
@@ -16,6 +21,7 @@ function loadSessionUser() {
   return user;
 }
 
+// Operatör ve yönetici aynı ekranla başlamasın.
 const homePath = (user) => (user.role === "admin" ? "/control" : "/");
 
 export default function App() {
@@ -49,9 +55,9 @@ export default function App() {
       />
 
       <Route element={<AppLayout user={user} onLogout={handleLogout} />}>
-        <Route path="/" element={<h1>İşlerim</h1>} />
-        <Route path="/records" element={<h1>Kayıtlar</h1>} />
-        <Route path="/records/new" element={<h1>Yeni kayıt</h1>} />
+        <Route path="/" element={<HomePage user={user} />} />
+        <Route path="/records" element={<RecordsPage user={user} />} />
+        <Route path="/records/new" element={<NewRecordPage user={user} />} />
         <Route path="/records/:recordId" element={<h1>Kayıt detayı</h1>} />
         <Route
           path="/records/:recordId/run"
