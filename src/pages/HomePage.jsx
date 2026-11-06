@@ -10,8 +10,11 @@ import { StatusTag } from "../components/StatusTag";
 const isOpen = (record) =>
   record.status === "opened" || record.status === "in_progress";
 
+// Sorumlu olduğu, yardımcı olarak eklendiği ya da bir adımında görevli olduğu kayıtlar.
 const isMine = (record, user) =>
-  record.ownerId === user.id || record.helperIds.includes(user.id);
+  record.ownerId === user.id ||
+  record.helperIds.includes(user.id) ||
+  record.steps.some((s) => s.people.includes(user.id));
 
 export function HomePage({ user }) {
   const navigate = useNavigate();
@@ -47,8 +50,8 @@ export function HomePage({ user }) {
           <Button type="primary" onClick={() => navigate(`/records/${r.id}/run`)}>
             Devam et
           </Button>
-          {/* Yanlış açılan kaydı sahibi, adım başlamadan kapatabiliyor. */}
-          {r.ownerId === user.id && r.status === "opened" && (
+          {/* Yanlış açılan kaydı sahibi, adım başlamadan kapatabiliyor. Kararı servis veriyor. */}
+          {r.permissions.canCancel && (
             <Button danger onClick={() => setClosing(r)}>
               Kapat
             </Button>

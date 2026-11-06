@@ -10,6 +10,46 @@ export function fail(message, status = 400, code) {
   throw error;
 }
 
+// Yetki kuralları tek yerde. Hem servisin kararı hem ekrana giden permissions bilgisi
+// bu fonksiyonları kullanıyor, böylece ekranda görünen ile servisin kararı ayrışmıyor.
+const isOpenRecord = (record) => record.status === "opened" || record.status === "in_progress";
+
+// Vaka: adımı yalnızca işin sahibi veya o adımda görevli kişiler ilerletebilir.
+// Yöneticinin rolü müdahale, adım yürütmüyor (bu bizim varsayımımız).
+export function canOperateStep(record, step, user) {
+  return user.role === "operator" && (record.ownerId === user.id || step.people.includes(user.id));
+}
+
+// Adımın kimlerle yapılacağına kaydın sorumlusu karar veriyor.
+export function canEditPeople(record, user) {
+  return user.role === "operator" && record.ownerId === user.id;
+}
+
+// Operatör yalnızca kendi başlamamış kaydını, yönetici her açık kaydı kapatabiliyor.
+export function canCancel(record, user) {
+  if (!isOpenRecord(record)) return false;
+  return user.role === "admin" || (record.ownerId === user.id && record.status === "opened");
+}
+
+// Ekran butonları bu bilgiye göre gösteriyor, kuralı kendisi hesaplamıyor.
+export function getPermissions(record, user) {
+  const step = getCurrentStep(record);
+  const open = isOpenRecord(record) && Boolean(step);
+  return {
+    canOperate: open && canOperateStep(record, step, user),
+    canEditPeople: open && canEditPeople(record, user),
+    canCancel: canCancel(record, user),
+  };
+}
+
+function requireAdmin(user) {
+  if (user.role !== "admin") fail("Bu işlem yönetici yetkisi ister.", 403);
+}
+
+function requireOperateStep(record, step, user) {
+  if (!canOperateStep(record, step, user)) fail("Bu adımı yalnızca kaydın sorumlusu ve adımda görevli kişiler ilerletebilir.", 403);
+}
+
 // "Kim, ne zaman, ne yaptı" sorusunun cevabı burada birikiyor.
 export function addLog(db, user, recordId, action, detail = "") {
   db.auditLog.push({
@@ -66,6 +106,8 @@ export function getMachines(db, now) {
 }
 
 export function openRecord(db, user, form) {
+  // Kaydı sahadaki operatör açıyor, yönetici müdahale ediyor (bizim varsayımımız).
+  if (user.role !== "operator") fail("Kaydı yalnızca operatör açabilir.", 403);
   const machine = db.machines.find((m) => m.id === form.machineId);
   if (!machine || !machine.active) fail("Bu makine seçilemez.", 422);
   const procedure = db.procedures.find((p) => p.id === form.procedureId);
@@ -154,6 +196,7 @@ export function openRecord(db, user, form) {
 
 // Tanım işlemlerini de denetim izine yazıyorum.
 export function addMachine(db, user, form) {
+  requireAdmin(user);
   const machine = {
     id: `machine${db.machines.length + 1}`,
     lineId: form.lineId,
@@ -168,6 +211,7 @@ export function addMachine(db, user, form) {
 
 // Makineyi silmiyorum, pasif yapıyorum. Böylece eski kayıtlar kaybolmuyor.
 export function setMachineActive(db, user, machineId, active) {
+  requireAdmin(user);
   const machine = db.machines.find((m) => m.id === machineId);
   // Açık kaydı olan makine kullanımdan kaldırılamıyor.
   if (!active && getMachineLock(db, machineId, Date.now())) fail("Bu makinede açık kayıt var.", 409);
@@ -194,6 +238,7 @@ function getOpenStep(db, user, recordId, stepId) {
 // Temizlik Adımı Başlatma
 export function startStep(db, user, recordId, stepId) {
   const { record, step } = getOpenStep(db, user, recordId, stepId);
+  requireOperateStep(record, step, user);
   if (getCurrentStep(record).stepId !== stepId) fail("Adımlar sırayla yapılır.", 409);
   if (step.status !== "pending") fail("Bu adım daha önce başlatılmış.", 409);
   checkPeopleFree(db, step);
@@ -211,6 +256,7 @@ export function startStep(db, user, recordId, stepId) {
 // Temizlik Adımı Bitirme
 export function finishStep(db, user, recordId, stepId, reason) {
   const { record, step } = getOpenStep(db, user, recordId, stepId);
+  requireOperateStep(record, step, user);
   if (step.status !== "running") fail("Yalnızca çalışan adım bitirilebilir.", 409);
   const now = Date.now();
 
@@ -236,6 +282,7 @@ export function finishStep(db, user, recordId, stepId, reason) {
 //Temizlik İçin Kişi Ekleme
 export function setStepPeople(db, user, recordId, stepId, userIds) {
   const { record, step } = getOpenStep(db, user, recordId, stepId);
+  if (!canEditPeople(record, user)) fail("Adımın görevlilerini yalnızca kaydın sorumlusu değiştirebilir.", 403);
   if (step.status === "done") fail("Biten adım değiştirilemez.", 409);
   if (step.status === "running") fail("Önce adımı duraklat.", 409);
   if (!userIds?.length) fail("En az bir kişi seçilmeli.", 422);
@@ -251,7 +298,10 @@ export function setStepPeople(db, user, recordId, stepId, userIds) {
 // adım durdurma
 export function pauseStep(db, user, recordId, stepId, reason) {
   const { record, step } = getOpenStep(db, user, recordId, stepId);
+  requireOperateStep(record, step, user);
   if (step.status !== "running") fail("Yalnızca çalışan adım duraklatılır.", 409);
+  // Duraklatmanın nedeni denetimde görünsün diye zorunlu.
+  if (!reason?.trim()) fail("Duraklatma nedeni seçilmeli.", 422);
   const now = Date.now();
   step.sessions.at(-1).end = now;
   step.status = "paused";
@@ -262,6 +312,7 @@ export function pauseStep(db, user, recordId, stepId, reason) {
 //adım devam ettirme
 export function resumeStep(db, user, recordId, stepId) {
   const { record, step } = getOpenStep(db, user, recordId, stepId);
+  requireOperateStep(record, step, user);
   if (step.status !== "paused") fail("Bu adım duraklatılmış değil.", 409);
   checkPeopleFree(db, step);
   step.status = "running";

@@ -46,7 +46,8 @@ export function RunPage() {
 
   if (!detail) return null;
 
-  const { record } = detail;
+  // Yetkiyi servis hesaplıyor, ekran yalnızca buna göre buton gösteriyor.
+  const { record, permissions } = detail;
   const openStep = record.steps.find((s) => s.status !== "done");
   // Kapatılan kayıtta işlem yapılamıyor.
   const step = record.status === "cancelled" ? undefined : openStep;
@@ -142,13 +143,17 @@ export function RunPage() {
           <Progress percent={Math.round((doneCount / record.steps.length) * 100)} format={() => `${doneCount} / ${record.steps.length} adım`} style={{ marginBottom: 16 }} />
           {definition?.media && <Image width={240} src={definition.media} />}
           <p>{definition?.description}</p>
-          {step && <Select mode="multiple" value={step.people} options={peopleOptions} disabled={step.status === "running" || pending} onChange={handlePeople} style={{ width: "100%", marginBottom: 16 }} />}
-          {step?.status === "pending" && (
+          {step && <Select mode="multiple" value={step.people} options={peopleOptions} disabled={step.status === "running" || pending || !permissions.canEditPeople} onChange={handlePeople} style={{ width: "100%", marginBottom: 16 }} />}
+          {/* Görmek çalıştırmak değil: yetkisi olmayan kaydı görür ama adımı ilerletemez. */}
+          {step && !permissions.canOperate && (
+            <Alert type="info" title="Bu kaydı görüntülüyorsun. Adımı yalnızca kaydın sorumlusu ve adımda görevli kişiler ilerletebilir." style={{ marginBottom: 16 }} />
+          )}
+          {permissions.canOperate && step?.status === "pending" && (
             <Button type="primary" size="large" block loading={pending} onClick={handleStart}>
               Adımı başlat
             </Button>
           )}
-          {step?.status === "running" && (
+          {permissions.canOperate && step?.status === "running" && (
             <Flex gap={8}>
               <Button size="large" disabled={pending} onClick={() => setAskPause(true)}>
                 Duraklat
@@ -158,13 +163,11 @@ export function RunPage() {
               </Button>
             </Flex>
           )}
-          {step?.status === "paused" && (
-            <>
-              <Alert type="warning" title={`Duraklatıldı: ${step.pauses.at(-1).reason}`} style={{ marginBottom: 16 }} />
-              <Button type="primary" size="large" block loading={pending} onClick={handleResume}>
-                Devam et
-              </Button>
-            </>
+          {step?.status === "paused" && <Alert type="warning" title={`Duraklatıldı: ${step.pauses.at(-1).reason}`} style={{ marginBottom: 16 }} />}
+          {permissions.canOperate && step?.status === "paused" && (
+            <Button type="primary" size="large" block loading={pending} onClick={handleResume}>
+              Devam et
+            </Button>
           )}
         </Card>
         <Row gutter={16} style={{ marginTop: 16 }}>

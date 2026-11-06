@@ -10,7 +10,7 @@ function getDefinitions(db) {
   return { facilities, lines, machines, materials, procedures, users };
 }
 
-function getRecordDetail(db, id) {
+function getRecordDetail(db, id, user) {
   const record = db.records.find((r) => r.id === id);
   if (!record) cleaningService.fail("Kayıt bulunamadı.", 404);
   // Kaydın yapıldığı versiyon ile güncel versiyonu karşılaştırabilmek için.
@@ -20,6 +20,8 @@ function getRecordDetail(db, id) {
     auditLog: db.auditLog.filter((l) => l.recordId === id),
     users: db.users,
     latestVersion: procedure.versions.at(-1).version,
+    // Bu kullanıcı bu kayıtta neleri yapabilir. Ekran butonları buna göre gösteriyor.
+    permissions: cleaningService.getPermissions(record, user),
   };
 }
 
@@ -38,8 +40,8 @@ const routes = [
   { method: "post", path: "/machines/:id/active", run: (db, user, [id], body) => cleaningService.setMachineActive(db, user, id, body.active) },
 
   // Kayıtlar
-  { method: "get", path: "/records", run: (db) => db.records },
-  { method: "get", path: "/records/:id", run: (db, user, [id]) => getRecordDetail(db, id) },
+  { method: "get", path: "/records", run: (db, user) => db.records.map((r) => ({ ...r, permissions: cleaningService.getPermissions(r, user) })) },
+  { method: "get", path: "/records/:id", run: (db, user, [id]) => getRecordDetail(db, id, user) },
   { method: "post", path: "/records", run: (db, user, _params, body) => cleaningService.openRecord(db, user, body) },
   { method: "post", path: "/records/:id/cancel", run: (db, user, [id], body) => cleaningService.cancelRecord(db, user, id, body.reason, body.detail) },
 
