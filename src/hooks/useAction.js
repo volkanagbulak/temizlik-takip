@@ -2,6 +2,9 @@
 import { useRef, useState } from "react";
 import { App } from "antd";
 
+const COOLDOWN_MS = 600;
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // Servise yazan işlemlerin ortak kalıbı: isteği gönder, hatayı göster, ekranı yenile.
 // İşlem ve yenileme bitene kadar ikinci tıklama yeni istek göndermiyor.
 export function useAction() {
@@ -30,6 +33,10 @@ export function useAction() {
     } finally {
       // Hata olsa da ekran yenileniyor, veri başka biri tarafından değişmiş olabilir.
       await onSettled?.();
+      // Servis anında cevap verdiği için işlem bitince buton aynı yerde başka bir butona
+      // dönüşüyor (Başlat → Bitir). Çift tıklamanın ikinci tıklaması yeni butona gitmesin diye
+      // işlemden sonra kısa bir süre daha yeni tıklama almıyorum.
+      await wait(COOLDOWN_MS);
       running.current = false;
       setPending(false);
     }

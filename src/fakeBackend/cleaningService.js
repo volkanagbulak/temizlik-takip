@@ -184,18 +184,18 @@ export function getCurrentStep(record) {
 //Açık Adımı bulma
 function getOpenStep(db, user, recordId, stepId) {
   const record = db.records.find((r) => r.id === recordId);
-  if (!record) fail("Kayıt Bulunamadı", 404);
-  if (record.status === "completed" || record.status === "cancelled") fail("Bu Kayıt Kapalı", 409);
+  if (!record) fail("Kayıt bulunamadı.", 404);
+  if (record.status === "completed" || record.status === "cancelled") fail("Bu kayıt kapalı.", 409);
   const step = record.steps.find((s) => s.stepId === stepId);
-  if (!step) fail("Adım Bulunamadı", 404);
+  if (!step) fail("Adım bulunamadı.", 404);
   return { record, step };
 }
 
 // Temizlik Adımı Başlatma
 export function startStep(db, user, recordId, stepId) {
   const { record, step } = getOpenStep(db, user, recordId, stepId);
-  if (getCurrentStep(record).stepId !== stepId) fail("Bu adımlar sırayla yapılır.", 409);
-  if (step.status !== "pending") fail("Bu Adım Daha Önce Başlatılmış", 409);
+  if (getCurrentStep(record).stepId !== stepId) fail("Adımlar sırayla yapılır.", 409);
+  if (step.status !== "pending") fail("Bu adım daha önce başlatılmış.", 409);
   checkPeopleFree(db, step);
   const now = Date.now();
   step.status = "running";
@@ -205,13 +205,13 @@ export function startStep(db, user, recordId, stepId) {
     record.startedAt = now;
   }
   //adım logu
-  addLog(db, user, record.id, "Adım Başlatıldı", step.title);
+  addLog(db, user, record.id, "Adım başlatıldı", step.title);
 }
 
 // Temizlik Adımı Bitirme
 export function finishStep(db, user, recordId, stepId, reason) {
   const { record, step } = getOpenStep(db, user, recordId, stepId);
-  if (step.status !== "running") fail("Yalnızca çalışılan adım bitirilebilir", 409);
+  if (step.status !== "running") fail("Yalnızca çalışan adım bitirilebilir.", 409);
   const now = Date.now();
 
   const phase = record.procedure.phases.find((p) => p.id === step.phaseId);
@@ -219,7 +219,7 @@ export function finishStep(db, user, recordId, stepId, reason) {
   if (isLastInPhase) {
     const stats = phaseStats(record, phase, now);
     if (!stats.metMin) {
-      if (!reason?.trim()) fail("Minimum süre sağlanmadı", 422, "MIN_NOT_MET");
+      if (!reason?.trim()) fail("Minimum süre sağlanmadı.", 422, "MIN_NOT_MET");
       record.deviations.push({ phaseName: phase.name, workMs: stats.workMs, minMs: stats.minMs, reason, by: user.id, at: now });
     }
   }
@@ -229,21 +229,23 @@ export function finishStep(db, user, recordId, stepId, reason) {
   if (record.steps.every((s) => s.status === "done")) {
     record.status = "completed";
     record.completedAt = now;
-    addLog(db, user, record.id, "temizlik Tamamlandı");
+    addLog(db, user, record.id, "Temizlik tamamlandı");
   }
 }
 
 //Temizlik İçin Kişi Ekleme
 export function setStepPeople(db, user, recordId, stepId, userIds) {
   const { record, step } = getOpenStep(db, user, recordId, stepId);
-  if (step.status === "done") fail("Biten Adım değiştirilmez", 409);
-  if (step.status === "running") fail("Önce adımı durdur", 409);
+  if (step.status === "done") fail("Biten adım değiştirilemez.", 409);
+  if (step.status === "running") fail("Önce adımı duraklat.", 409);
   if (!userIds?.length) fail("En az bir kişi seçilmeli.", 422);
   // Adıma yalnızca aktif operatörler eklenebilir.
   const valid = userIds.every((id) => db.users.some((u) => u.id === id && u.role === "operator" && u.active));
   if (!valid) fail("Seçilen kişi bu adıma eklenemez.", 422);
   step.people = userIds;
-  addLog(db, user, record.id, "Adım görevlisi değiştirildi", step.title);
+  // Denetimde kimin adıma eklendiği de görünsün.
+  const names = userIds.map((id) => db.users.find((u) => u.id === id).name).join(", ");
+  addLog(db, user, record.id, "Adım görevlisi değiştirildi", `${step.title}: ${names}`);
 }
 
 // adım durdurma
