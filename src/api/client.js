@@ -11,3 +11,7 @@ api.interceptors.request.use((config) => {
   if (text) config.headers["x-user-id"] = JSON.parse(text).id;
   return config;
 });
+
+// Alan dosyaları bu iki yardımcıyı kullanıyor, cevaptan yalnızca veri dönüyor.
+export const get = (url) => api.get(url).then((res) => res.data);
+export const post = (url, body) => api.post(url, body).then((res) => res.data);

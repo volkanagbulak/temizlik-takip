@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { Button, Card, Flex, Input, Segmented, Select, Table, Tag } from "antd";
-import { getRecordsApi } from "../api/cleaningApi";
+import { getRecordsApi } from "../api/recordApi";
 import { StatusTag } from "../components/StatusTag";
 
 const STATUS_OPTIONS = [

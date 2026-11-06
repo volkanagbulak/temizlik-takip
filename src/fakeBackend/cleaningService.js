@@ -3,7 +3,7 @@ import { phaseStats } from "../utils/time";
 // Bu dosya backend'in vereceği cevapları taklit ediyor. Boş alan gibi kontroller formda,
 // makine, yetki ve adım sırası gibi kurallar burada. Doküman yalnızca ekran kontrolünü
 // yeterli bulmuyor. Hata kodları: 403 yetki, 409 çakışma, 422 iş kuralı.
-function fail(message, status = 400, code) {
+export function fail(message, status = 400, code) {
   const error = new Error(message);
   error.status = status;
   error.code = code;
@@ -52,6 +52,19 @@ export function getMachineLock(db, machineId, now) {
   return { record, state: now > record.reservedUntil ? "expired" : "reserved" };
 }
 
+// Ekran dolu makineyi önceden gösterebilsin diye. Son kararı yine openRecord veriyor,
+// çünkü iki kişi aynı anda boş görüp aynı makineyi seçebilir.
+export function getMachines(db, now) {
+  return db.machines
+    .filter((m) => m.active)
+    .map((machine) => {
+      const lock = getMachineLock(db, machine.id, now);
+      const taken = lock && lock.state !== "expired";
+      const owner = taken ? db.users.find((u) => u.id === lock.record.ownerId) : null;
+      return { ...machine, lock: taken ? { recordNo: lock.record.no, ownerName: owner.name } : null };
+    });
+}
+
 export function openRecord(db, user, form) {
   const machine = db.machines.find((m) => m.id === form.machineId);
   if (!machine || !machine.active) fail("Bu makine seçilemez.", 422);
@@ -59,6 +72,17 @@ export function openRecord(db, user, form) {
   if (!procedure || !procedure.machineIds.includes(machine.id)) fail("Bu form bu makine için tanımlı değil.", 422);
   // Yeni kayıt her zaman formun son versiyonuyla açılıyor.
   const version = procedure.versions.at(-1);
+  // Ekran yalnızca malzeme ve lot seçimini gönderiyor. Kod, ad ve son kullanma tarihi
+  // tanımdan alınıyor, böylece kayda giren malzeme bilgisi ekrandan değiştirilemiyor.
+  const materials = (form.materialLots ?? []).map(({ materialId, lot }) => {
+    const material = db.materials.find((m) => m.id === materialId);
+    const selected = material?.lots.find((l) => l.lot === lot);
+    if (!selected) fail("Seçilen malzeme bulunamadı.", 422);
+    return { code: material.code, name: material.name, ...selected };
+  });
+  // Formdaki zorunluluk kontrolü kullanıcıya kolaylık, asıl kontrol burada.
+  if (version.materialRequired && materials.length === 0) fail("Bu form için malzeme zorunlu.", 422);
+  if (!form.workOrder?.trim()) fail("İş emri zorunlu.", 422);
   const now = Date.now();
   // Makinede devam eden veya rezerve kayıt varsa ikinci kayıt açılamıyor.
   const lock = getMachineLock(db, machine.id, now);
@@ -100,7 +124,7 @@ export function openRecord(db, user, form) {
       materialRequired: version.materialRequired,
       phases: version.phases,
     }),
-    materials: form.materials ?? [],
+    materials,
     workOrder: form.workOrder.trim(),
     note: form.note ?? "",
     openedAt: now,
@@ -214,6 +238,10 @@ export function setStepPeople(db, user, recordId, stepId, userIds) {
   const { record, step } = getOpenStep(db, user, recordId, stepId);
   if (step.status === "done") fail("Biten Adım değiştirilmez", 409);
   if (step.status === "running") fail("Önce adımı durdur", 409);
+  if (!userIds?.length) fail("En az bir kişi seçilmeli.", 422);
+  // Adıma yalnızca aktif operatörler eklenebilir.
+  const valid = userIds.every((id) => db.users.some((u) => u.id === id && u.role === "operator" && u.active));
+  if (!valid) fail("Seçilen kişi bu adıma eklenemez.", 422);
   step.people = userIds;
   addLog(db, user, record.id, "Adım görevlisi değiştirildi", step.title);
 }
@@ -243,6 +271,16 @@ export function resumeStep(db, user, recordId, stepId) {
 // kişiyi serbest bırakır, ama kayıt açık kaldığı için makineyi bırakmaz.
 export function findBusyRecord(db, userId) {
   return db.records.find((r) => r.status === "in_progress" && r.steps.some((s) => s.status === "running" && s.people.includes(userId)));
+}
+
+// Ekran başka kayıtta çalışan kişiyi önceden gösterebilsin diye. Son kararı checkPeopleFree veriyor.
+export function getAvailability(db) {
+  return db.users
+    .filter((u) => u.role === "operator" && u.active)
+    .map(({ id, name }) => {
+      const busy = findBusyRecord(db, id);
+      return { id, name, busy: busy ? { recordId: busy.id, recordNo: busy.no } : null };
+    });
 }
 
 // Adım başlamadan önce görevli herkesin boşta olduğunu kontrol eder.

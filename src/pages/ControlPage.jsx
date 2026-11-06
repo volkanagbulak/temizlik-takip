@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Button, Card, Flex, Table, Tag } from "antd";
-import { getDefinitionsApi, getRecordsApi } from "../api/cleaningApi";
+import { getDefinitionsApi } from "../api/definitionApi";
+import { getRecordsApi } from "../api/recordApi";
 import { CancelRecordModal } from "../components/CancelRecordModal";
 import { StatusTag } from "../components/StatusTag";
 

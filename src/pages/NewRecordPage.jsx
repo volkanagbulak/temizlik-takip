@@ -1,45 +1,66 @@
 // src/pages/NewRecordPage.jsx
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { App, Button, Card, Form, Input, Select } from "antd";
-import { getDefinitionsApi, openRecordApi } from "../api/cleaningApi";
+import { useNavigate, useOutletContext } from "react-router-dom";
+import { Button, Card, Form, Input, Select } from "antd";
+import { getDefinitionsApi } from "../api/definitionApi";
+import { getMachinesApi } from "../api/machineApi";
+import { openRecordApi } from "../api/recordApi";
+import { getAvailabilityApi } from "../api/userApi";
+import { useAction } from "../hooks/useAction";
 
 const toOptions = (items, label) =>
   items.map((item) => ({ value: item.id, label: label(item) }));
 
+// Makine ve personel durumu değişebildiği için tanımlarla birlikte okunuyor.
+const loadForm = () =>
+  Promise.all([getDefinitionsApi(), getMachinesApi(), getAvailabilityApi()]).then(
+    ([definitions, machines, people]) => ({ definitions, machines, people }),
+  );
+
 export function NewRecordPage({ user }) {
-  const { message } = App.useApp();
   const navigate = useNavigate();
+  const { refreshKey } = useOutletContext();
+  const { run, pending } = useAction();
   const [form] = Form.useForm();
-  const [definitions, setDefinitions] = useState(null);
+  const [data, setData] = useState(null);
 
   const category = Form.useWatch("category", form);
   const lineId = Form.useWatch("lineId", form);
   const machineId = Form.useWatch("machineId", form);
   const procedureId = Form.useWatch("procedureId", form);
 
+  // Başka sekmede makine alınınca liste güncelleniyor. Formda seçilenler silinmiyor.
   useEffect(() => {
-    getDefinitionsApi().then(setDefinitions);
-  }, []);
+    loadForm().then(setData);
+  }, [refreshKey]);
 
   async function handleSubmit(values) {
-    // Lot seçenekleri metin olarak duruyor, kayda nesne olarak gidiyor.
-    const materials = (values.lots ?? []).map((text) => JSON.parse(text));
-    try {
-      const record = await openRecordApi({ ...values, materials });
-      navigate(`/records/${record.id}/run`);
-    } catch (err) {
-      message.error(err.response.data.message);
-    }
+    // Yalnızca seçim gönderiliyor: malzeme kimliği ve lot. Gerisini servis tanımdan alıyor.
+    const { lots = [], ...rest } = values;
+    const materialLots = lots.map((value) => {
+      const [materialId, lot] = value.split("|");
+      return { materialId, lot };
+    });
+    const result = await run(() => openRecordApi({ ...rest, materialLots }));
+    if (result.ok) navigate(`/records/${result.data.id}/run`);
+    // Makineyi başkası aldıysa liste hemen yenilensin.
+    else loadForm().then(setData);
   }
 
-  if (!definitions) return null;
+  if (!data) return null;
+
+  const { definitions, people } = data;
 
   // Seçimler birbirine bağlı: hat makineyi, makine ve kayıt türü de formu belirliyor.
-  // Kullanımdan kaldırılan makine listede çıkmıyor.
-  const machines = definitions.machines.filter(
-    (m) => m.lineId === lineId && m.active,
-  );
+  // Kullanımdan kaldırılan makine listede çıkmıyor. Dolu makine seçilemiyor, kimde olduğu
+  // yazıyor. Son kararı yine servis veriyor.
+  const machineOptions = data.machines
+    .filter((m) => m.lineId === lineId)
+    .map((m) => ({
+      value: m.id,
+      label: m.lock ? `${m.code} ${m.name} (${m.lock.ownerName} kullanıyor)` : `${m.code} ${m.name}`,
+      disabled: Boolean(m.lock),
+    }));
   const procedures = definitions.procedures.filter(
     (p) => p.category === category && p.machineIds.includes(machineId),
   );
@@ -48,14 +69,18 @@ export function NewRecordPage({ user }) {
   const materialRequired = procedure?.versions.at(-1).materialRequired;
   const lotOptions = definitions.materials.flatMap((m) =>
     m.lots.map((l) => ({
-      value: JSON.stringify({ code: m.code, name: m.name, ...l }),
+      value: `${m.id}|${l.lot}`,
       label: `${m.code} ${m.name} / ${l.lot} / SKT ${l.expiry}`,
     })),
   );
   // Kaydı açan zaten sorumlu, kendini yardımcı olarak seçemesin.
-  const helpers = definitions.users.filter(
-    (u) => u.role === "operator" && u.active && u.id !== user.id,
-  );
+  // Başka kayıtta çalışan kişi seçilebilir ama kimde olduğu görünsün.
+  const helperOptions = people
+    .filter((p) => p.id !== user.id)
+    .map((p) => ({
+      value: p.id,
+      label: p.busy ? `${p.name} (${p.busy.recordNo} kaydında)` : p.name,
+    }));
 
   return (
     <Card title="Yeni kayıt" style={{ maxWidth: 640 }}>
@@ -96,7 +121,7 @@ export function NewRecordPage({ user }) {
         >
           <Select
             onChange={() => form.setFieldValue("procedureId", undefined)}
-            options={toOptions(machines, (m) => `${m.code} ${m.name}`)}
+            options={machineOptions}
           />
         </Form.Item>
         <Form.Item
@@ -121,7 +146,7 @@ export function NewRecordPage({ user }) {
           <Select mode="multiple" options={lotOptions} />
         </Form.Item>
         <Form.Item name="helperIds" label="Yardımcı personel">
-          <Select mode="multiple" options={toOptions(helpers, (u) => u.name)} />
+          <Select mode="multiple" options={helperOptions} />
         </Form.Item>
         <Form.Item
           name="workOrder"
@@ -135,7 +160,7 @@ export function NewRecordPage({ user }) {
         <Form.Item name="note" label="Açıklama">
           <Input.TextArea rows={2} />
         </Form.Item>
-        <Button type="primary" size="large" htmlType="submit" block>
+        <Button type="primary" size="large" htmlType="submit" block loading={pending}>
           Kaydı aç
         </Button>
       </Form>
