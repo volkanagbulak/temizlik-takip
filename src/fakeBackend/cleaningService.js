@@ -43,6 +43,15 @@ export function makeFieldRef(db, category, year) {
 
 // Kayıt burada açılıyor. Ekranda listeleri süzüyorum ama asıl kontrol burada,
 // çünkü kişi rastgele makine veya form seçememeli.
+// Makinenin açık kaydını bulur. Durumu ayrıca saklamıyorum, kayıttan hesaplıyorum.
+// Böylece rezervasyon süresi dolunca makine kendiliğinden boşa çıkıyor.
+export function getMachineLock(db, machineId, now) {
+  const record = db.records.find((r) => r.machine.id === machineId && (r.status === "opened" || r.status === "in_progress"));
+  if (!record) return null;
+  if (record.status === "in_progress") return { record, state: "in_progress" };
+  return { record, state: now > record.reservedUntil ? "expired" : "reserved" };
+}
+
 export function openRecord(db, user, form) {
   const machine = db.machines.find((m) => m.id === form.machineId);
   if (!machine || !machine.active) fail("Bu makine seçilemez.", 422);
@@ -50,8 +59,20 @@ export function openRecord(db, user, form) {
   if (!procedure || !procedure.machineIds.includes(machine.id)) fail("Bu form bu makine için tanımlı değil.", 422);
   // Yeni kayıt her zaman formun son versiyonuyla açılıyor.
   const version = procedure.versions.at(-1);
-
   const now = Date.now();
+  // Makinede devam eden veya rezerve kayıt varsa ikinci kayıt açılamıyor.
+  const lock = getMachineLock(db, machine.id, now);
+  if (lock && lock.state !== "expired") {
+    const owner = db.users.find((u) => u.id === lock.record.ownerId);
+    fail(`${machine.code} ${owner.name} tarafından alındı.`, 409);
+  }
+  // Süresi dolmuş rezervasyon makineyi kilitlemesin, eski kayıt nedeniyle kapanıyor.
+  if (lock) {
+    lock.record.status = "cancelled";
+    lock.record.cancel = { at: now, by: "system", reason: "Rezervasyon süresi doldu." };
+    addLog(db, user, lock.record.id, "Rezervasyon süresi doldu");
+  }
+
   const line = db.lines.find((l) => l.id === machine.lineId);
   const facility = db.facilities.find((f) => f.id === line.facilityId);
   const record = {
@@ -83,6 +104,8 @@ export function openRecord(db, user, form) {
     workOrder: form.workOrder.trim(),
     note: form.note ?? "",
     openedAt: now,
+    // Kayıt 30 dakika makineyi ayırıyor. Bu süre bizim varsayımımız.
+    reservedUntil: now + 30 * 60 * 1000,
     // Kayıt açmak temizliğe başlamak değil, süre ilk adım başlayınca başlayacak.
     startedAt: null,
     completedAt: null,
@@ -122,6 +145,8 @@ export function addMachine(db, user, form) {
 // Makineyi silmiyorum, pasif yapıyorum. Böylece eski kayıtlar kaybolmuyor.
 export function setMachineActive(db, user, machineId, active) {
   const machine = db.machines.find((m) => m.id === machineId);
+  // Açık kaydı olan makine kullanımdan kaldırılamıyor.
+  if (!active && getMachineLock(db, machineId, Date.now())) fail("Bu makinede açık kayıt var.", 409);
   machine.active = active;
   addLog(db, user, null, active ? "Makine geri alındı" : "Makine kaldırıldı", machine.code);
 }
@@ -131,6 +156,7 @@ export function setMachineActive(db, user, machineId, active) {
 export function getCurrentStep(record) {
   return record.steps.find((s) => s.status !== "done");
 }
+
 //Açık Adımı bulma
 function getOpenStep(db, user, recordId, stepId) {
   const record = db.records.find((r) => r.id === recordId);
@@ -146,6 +172,7 @@ export function startStep(db, user, recordId, stepId) {
   const { record, step } = getOpenStep(db, user, recordId, stepId);
   if (getCurrentStep(record).stepId !== stepId) fail("Bu adımlar sırayla yapılır.", 409);
   if (step.status !== "pending") fail("Bu Adım Daha Önce Başlatılmış", 409);
+  checkPeopleFree(db, step);
   const now = Date.now();
   step.status = "running";
   step.sessions.push({ start: now, end: null, people: [...step.people] });
@@ -201,11 +228,55 @@ export function pauseStep(db, user, recordId, stepId, reason) {
   step.pauses.push({ at: now, reason });
   addLog(db, user, record.id, "Adım duraklatıldı", `${step.title}: ${reason}`);
 }
+
 //adım devam ettirme
 export function resumeStep(db, user, recordId, stepId) {
   const { record, step } = getOpenStep(db, user, recordId, stepId);
   if (step.status !== "paused") fail("Bu adım duraklatılmış değil.", 409);
+  checkPeopleFree(db, step);
   step.status = "running";
   step.sessions.push({ start: Date.now(), end: null, people: [...step.people] });
   addLog(db, user, record.id, "Adım sürdürüldü", step.title);
+}
+
+// Kişinin çalışan bir adımı olan kaydı bulur. Duraklatılan adım "running" olmadığı için
+// kişiyi serbest bırakır, ama kayıt açık kaldığı için makineyi bırakmaz.
+export function findBusyRecord(db, userId) {
+  return db.records.find((r) => r.status === "in_progress" && r.steps.some((s) => s.status === "running" && s.people.includes(userId)));
+}
+
+// Adım başlamadan önce görevli herkesin boşta olduğunu kontrol eder.
+function checkPeopleFree(db, step) {
+  for (const userId of step.people) {
+    const busy = findBusyRecord(db, userId);
+    if (busy) {
+      const person = db.users.find((u) => u.id === userId);
+      fail(`${person.name} şu anda ${busy.no} kaydında çalışıyor.`, 409);
+    }
+  }
+}
+
+// Kayıt silinmiyor, nedeniyle kapanıyor. Operatör yalnızca kendi başlamamış kaydını,
+// yönetici ise açıklama yazarak her açık kaydı kapatabiliyor.
+export function cancelRecord(db, user, recordId, reason, detail = "") {
+  const record = db.records.find((r) => r.id === recordId);
+  if (!record) fail("Kayıt bulunamadı.", 404);
+  if (record.status === "completed" || record.status === "cancelled") fail("Bu kayıt zaten kapalı.", 409);
+  if (user.role === "admin") {
+    if (!detail.trim()) fail("Yönetici kapatırken açıklama yazmalı.", 422);
+  } else {
+    if (record.ownerId !== user.id) fail("Başkasının kaydını kapatamazsın.", 403);
+    if (record.status !== "opened") fail("Başlamış kaydı yalnızca yönetici kapatabilir.", 403);
+  }
+
+  const now = Date.now();
+  // Çalışan adımın süresi kapatma anında bitiyor, yarım adımlar "interrupted" kalıyor.
+  const running = record.steps.find((s) => s.status === "running");
+  if (running) running.sessions.at(-1).end = now;
+  record.steps.forEach((s) => {
+    if (s.status === "running" || s.status === "paused") s.status = "interrupted";
+  });
+  record.status = "cancelled";
+  record.cancel = { at: now, by: user.id, reason: detail ? `${reason}: ${detail}` : reason };
+  addLog(db, user, record.id, "Kayıt kapatıldı", record.cancel.reason);
 }

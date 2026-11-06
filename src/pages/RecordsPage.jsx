@@ -1,6 +1,6 @@
 // src/pages/RecordsPage.jsx
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { Button, Card, Flex, Input, Segmented, Select, Table, Tag } from "antd";
 import { getRecordsApi } from "../api/cleaningApi";
 import { StatusTag } from "../components/StatusTag";
@@ -18,6 +18,7 @@ const formatDate = (time) => new Date(time).toLocaleString("tr-TR");
 // Bu yüzden burada "Devam et" yok, yalnızca "Detay" var.
 export function RecordsPage({ user }) {
   const navigate = useNavigate();
+  const { refreshKey } = useOutletContext();
   const [records, setRecords] = useState([]);
   const [scope, setScope] = useState("mine");
   const [status, setStatus] = useState();
@@ -25,7 +26,7 @@ export function RecordsPage({ user }) {
 
   useEffect(() => {
     getRecordsApi().then(setRecords);
-  }, []);
+  }, [refreshKey]);
 
   const text = search.trim().toLowerCase();
   const filtered = records.filter((r) => {

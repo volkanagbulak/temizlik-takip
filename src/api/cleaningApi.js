@@ -13,6 +13,7 @@ export const setMachineActiveApi = (id, active) => post(`/machines/${id}/active`
 export const getRecordsApi = () => get("/records");
 export const getRecordDetailApi = (id) => get(`/records/${id}`);
 export const openRecordApi = (form) => post("/records", form);
+export const cancelRecordApi = (id, reason, detail) => post(`/records/${id}/cancel`, { reason, detail });
 export const startStepApi = (id, stepId) => post(`/records/${id}/steps/${stepId}/start`);
 export const finishStepApi = (id, stepId, reason) => post(`/records/${id}/steps/${stepId}/finish`, { reason });
 export const setStepPeopleApi = (id, stepId, userIds) => post(`/records/${id}/steps/${stepId}/people`, { userIds });

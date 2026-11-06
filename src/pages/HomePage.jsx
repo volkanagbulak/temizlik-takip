@@ -1,8 +1,9 @@
 // src/pages/HomePage.jsx
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Button, Card, Empty, Table, Tag } from "antd";
+import { useNavigate, useOutletContext } from "react-router-dom";
+import { Button, Card, Empty, Flex, Table, Tag } from "antd";
 import { getRecordsApi } from "../api/cleaningApi";
+import { CancelRecordModal } from "../components/CancelRecordModal";
 import { StatusTag } from "../components/StatusTag";
 
 // Yarım kalan iş otomatik kapanmıyor. Kişi buradan kaldığı yerden devam ediyor.
@@ -14,11 +15,18 @@ const isMine = (record, user) =>
 
 export function HomePage({ user }) {
   const navigate = useNavigate();
+  const { refreshKey } = useOutletContext();
   const [records, setRecords] = useState([]);
+  const [closing, setClosing] = useState(null);
 
   useEffect(() => {
     getRecordsApi().then(setRecords);
-  }, []);
+  }, [refreshKey]);
+
+  function handleCancelled() {
+    setClosing(null);
+    getRecordsApi().then(setRecords);
+  }
 
   const myRecords = records.filter((r) => isOpen(r) && isMine(r, user));
 
@@ -35,9 +43,17 @@ export function HomePage({ user }) {
     {
       title: "",
       render: (_, r) => (
-        <Button type="primary" onClick={() => navigate(`/records/${r.id}/run`)}>
-          Devam et
-        </Button>
+        <Flex gap={8}>
+          <Button type="primary" onClick={() => navigate(`/records/${r.id}/run`)}>
+            Devam et
+          </Button>
+          {/* Yanlış açılan kaydı sahibi, adım başlamadan kapatabiliyor. */}
+          {r.ownerId === user.id && r.status === "opened" && (
+            <Button danger onClick={() => setClosing(r)}>
+              Kapat
+            </Button>
+          )}
+        </Flex>
       ),
     },
   ];
@@ -59,6 +75,7 @@ export function HomePage({ user }) {
           scroll={{ x: true }}
         />
       )}
+      {closing && <CancelRecordModal record={closing} onClose={() => setClosing(null)} onDone={handleCancelled} />}
     </Card>
   );
 }

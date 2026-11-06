@@ -1,4 +1,5 @@
 // src/components/AppLayout.jsx
+import { useEffect, useState } from "react";
 import { Avatar, Button, Flex, Layout, Tag, Typography } from "antd";
 import { LogoutOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 import { Navigate, Outlet } from "react-router-dom";
@@ -8,6 +9,17 @@ const line = "1px solid #eceff1";
 
 // Tüm sayfaların ortak çerçevesi. Giriş yapmayan kişi buradan login ekranına dönüyor.
 export function AppLayout({ user, onLogout }) {
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // storage olayı başka sekme veriyi değiştirince çalışıyor. refreshKey artınca sayfalar
+  // veriyi yeniden okuyor, yarım doldurulmuş form silinmiyor. Gerçek sistemde bunun
+  // yerine WebSocket veya belirli aralıklarla sorgu olurdu.
+  useEffect(() => {
+    const onStorage = () => setRefreshKey((key) => key + 1);
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   if (!user) return <Navigate to="/login" replace />;
 
   const isAdmin = user.role === "admin";
@@ -55,7 +67,7 @@ export function AppLayout({ user, onLogout }) {
           </Flex>
         </Layout.Header>
         <Layout.Content style={{ padding: 24 }}>
-          <Outlet />
+          <Outlet context={{ refreshKey }} />
         </Layout.Content>
       </Layout>
     </Layout>

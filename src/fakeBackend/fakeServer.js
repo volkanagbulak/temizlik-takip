@@ -37,6 +37,7 @@ const routes = [
   { method: "get", path: "/records", run: (db) => db.records },
   { method: "get", path: "/records/:id", run: (db, user, [id]) => getRecordDetail(db, id) },
   { method: "post", path: "/records", run: (db, user, _params, body) => cleaningService.openRecord(db, user, body) },
+  { method: "post", path: "/records/:id/cancel", run: (db, user, [id], body) => cleaningService.cancelRecord(db, user, id, body.reason, body.detail) },
 
   // Adımlar
   { method: "post", path: "/records/:id/steps/:stepId/start", run: (db, user, [id, stepId]) => cleaningService.startStep(db, user, id, stepId) },
@@ -59,7 +60,8 @@ export async function fakeAdapter(config) {
     const db = loadDb();
     const user = db.users.find((u) => u.id === config.headers["x-user-id"]);
     const data = route.run(db, user, params, body);
-    saveDb(db);
+    // Okuma isteği veriyi değiştirmiyor. Yazarsa başka sekmenin yeni verisini ezebilir.
+    if (config.method !== "get") saveDb(db);
     return { data, status: 200, statusText: "OK", headers: {}, config };
   } catch (err) {
     const error = new Error(err.message);

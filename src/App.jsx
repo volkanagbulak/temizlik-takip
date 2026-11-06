@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { AppLayout } from "./components/AppLayout";
 import { AdminRoute } from "./components/AdminRoute";
+import { ControlPage } from "./pages/ControlPage";
 import { LoginPage } from "./pages/LoginPage";
 import { HomePage } from "./pages/HomePage";
 import { NewRecordPage } from "./pages/NewRecordPage";
@@ -49,7 +50,7 @@ export default function App() {
         <Route path="/records/:recordId/run" element={<RunPage />} />
 
         <Route element={<AdminRoute user={user} />}>
-          <Route path="/control" element={<h1>Kontrol paneli</h1>} />
+          <Route path="/control" element={<ControlPage />} />
           <Route path="/procedures" element={<h1>Prosedürler</h1>} />
           <Route path="/machines" element={<h1>Makineler</h1>} />
           <Route path="/materials" element={<h1>Malzemeler</h1>} />

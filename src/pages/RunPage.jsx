@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useOutletContext, useParams } from "react-router-dom";
 import { finishStepApi, getRecordDetailApi, pauseStepApi, resumeStepApi, setStepPeopleApi, startStepApi } from "../api/cleaningApi";
 import { Alert, App, Button, Card, Col, Descriptions, Flex, Image, Input, Modal, Progress, Row, Select, Statistic, Steps } from "antd";
 import { StatusTag } from "../components/StatusTag";
@@ -10,6 +10,7 @@ const PAUSE_REASONS = ["Vardiya bitti", "Mola", "Malzeme bekleniyor", "Arıza"].
 export function RunPage() {
   const { message } = App.useApp();
   const { recordId } = useParams();
+  const { refreshKey } = useOutletContext();
   const [detail, setDetail] = useState(null);
   const [now, setNow] = useState(() => Date.now());
   const [askReason, setAskReason] = useState(false);
@@ -21,7 +22,7 @@ export function RunPage() {
 
   useEffect(() => {
     getRecordDetailApi(recordId).then(setDetail);
-  }, [recordId]);
+  }, [recordId, refreshKey]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -31,25 +32,28 @@ export function RunPage() {
   if (!detail) return null;
 
   const { record, users } = detail;
-  const step = record.steps.find((s) => s.status !== "done");
+  const openStep = record.steps.find((s) => s.status !== "done");
+  // Kapatılan kayıtta işlem yapılamıyor.
+  const step = record.status === "cancelled" ? undefined : openStep;
   const definition = record.procedure.phases.flatMap((phase) => phase.steps).find((s) => s.id === step?.stepId);
   const stepItems = record.steps.map((s) => ({
     title: s.title,
     content: record.procedure.phases.find((p) => p.id === s.phaseId).name,
   }));
-  const current = step ? record.steps.indexOf(step) : record.steps.length;
+  const current = openStep ? record.steps.indexOf(openStep) : record.steps.length;
   const stats = recordStats(record, now);
   const doneCount = record.steps.filter((s) => s.status === "done").length;
   const peopleOptions = users.filter((u) => u.role === "operator" && u.active).map((u) => ({ value: u.id, label: u.name }));
 
-  // Tüm işlemler aynı: servisi çağır, kaydı yeniden oku, hata varsa göster.
+  // Tüm işlemler aynı: servisi çağır, hata varsa göster, kaydı yeniden oku.
+  // Hata aldıysam ekran eski kalmış olabilir, o yüzden her durumda yeniden okuyorum.
   async function run(action) {
     try {
       await action();
-      await refresh();
     } catch (err) {
       message.error(err.response.data.message);
     }
+    await refresh();
   }
 
   const handleStart = () => run(() => startStepApi(record.id, step.stepId));
@@ -81,8 +85,12 @@ export function RunPage() {
       await refresh();
       message.success(`${step.title} tamamlandı`);
     } catch (err) {
-      if (err.response.data.code === "MIN_NOT_MET") setAskReason(true);
-      else message.error(err.response.data.message);
+      if (err.response.data.code === "MIN_NOT_MET") {
+        setAskReason(true);
+      } else {
+        message.error(err.response.data.message);
+        await refresh();
+      }
     }
   }
   function handlePeople(userIds) {
@@ -115,7 +123,8 @@ export function RunPage() {
         </Card>
       </Col>
       <Col xs={24} md={16}>
-        <Card title={step?.title ?? "Temizlik tamamlandı"}>
+        <Card title={record.status === "cancelled" ? "Kayıt kapatıldı" : (step?.title ?? "Temizlik tamamlandı")}>
+          {record.status === "cancelled" && <Alert type="error" title={record.cancel.reason} style={{ marginBottom: 16 }} />}
           <Progress percent={Math.round((doneCount / record.steps.length) * 100)} format={() => `${doneCount} / ${record.steps.length} adım`} style={{ marginBottom: 16 }} />
           {definition?.media && <Image width={240} src={definition.media} />}
           <p>{definition?.description}</p>
@@ -160,11 +169,11 @@ export function RunPage() {
         </Row>
       </Col>
 
-      <Modal title="Adımı duraklat" open={askPause} onOk={handlePause} onCancel={() => setAskPause(false)}>
+      <Modal title="Adımı duraklat" open={askPause && step?.status === "running"} onOk={handlePause} onCancel={() => setAskPause(false)}>
         <Select placeholder="Neden" value={pauseReason} onChange={setPauseReason} options={PAUSE_REASONS} style={{ width: "100%" }} />
       </Modal>
 
-      <Modal title="Minimum süre sağlanmadı" open={askReason} onOk={handleReasonOk} onCancel={() => setAskReason(false)}>
+      <Modal title="Minimum süre sağlanmadı" open={askReason && step?.status === "running"} onOk={handleReasonOk} onCancel={() => setAskReason(false)}>
         <Input.TextArea rows={3} placeholder="Açıklama" value={finishReason} onChange={(e) => setFinishReason(e.target.value)} />
       </Modal>
     </Row>
