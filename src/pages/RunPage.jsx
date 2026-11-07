@@ -144,13 +144,14 @@ export function RunPage() {
           />
         </Card>
       </Col>
-      <Col xs={24} md={8}>
+      {/* Telefonda önce aktif adım ve butonlar görünsün, adım listesi altta kalsın. */}
+      <Col xs={{ span: 24, order: 2 }} md={{ span: 8, order: 1 }}>
         {/* Temizlik Adımları */}
         <Card title="Adımlar">
           <Steps orientation="vertical" size="small" current={current} items={stepItems} />
         </Card>
       </Col>
-      <Col xs={24} md={16}>
+      <Col xs={{ span: 24, order: 1 }} md={{ span: 16, order: 2 }}>
         <Card
           title={record.status === "cancelled" ? "Kayıt kapatıldı" : (step?.title ?? "Temizlik tamamlandı")}
           // Yönetici her açık kaydı, operatör yalnızca başlamamış kendi kaydını kapatabilir. Kararı servis veriyor.

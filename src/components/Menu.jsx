@@ -30,7 +30,7 @@ const ADMIN_MENU = [
   { key: "/audit", label: "Denetim izi", icon: <SafetyCertificateOutlined /> },
 ];
 
-export function Menu({ user }) {
+export function Menu({ user, onNavigate }) {
   const location = useLocation();
   const navigate = useNavigate();
   const items = user.role === "admin" ? ADMIN_MENU : OPERATOR_MENU;
@@ -45,7 +45,10 @@ export function Menu({ user }) {
       mode="inline"
       items={items}
       selectedKeys={selected ? [selected] : []}
-      onClick={({ key }) => navigate(key)}
+      onClick={({ key }) => {
+        navigate(key);
+        onNavigate?.();
+      }}
       style={{ borderInlineEnd: 0 }}
     />
   );
