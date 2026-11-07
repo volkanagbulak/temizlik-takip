@@ -36,7 +36,7 @@ export function PhasesEditor() {
               <Form.Item name={[phaseField.name, "id"]} hidden>
                 <Input />
               </Form.Item>
-              <Flex gap={16} wrap>
+              <Flex wrap style={{ columnGap: 16 }}>
                 <Form.Item name={[phaseField.name, "name"]} label="Faz adı" rules={[{ required: true, whitespace: true, message: "Faz adı zorunlu" }]} style={{ flex: 1, minWidth: 200 }}>
                   <Input placeholder="Örn. Ön hazırlık" />
                 </Form.Item>
@@ -46,25 +46,30 @@ export function PhasesEditor() {
               </Flex>
               <Form.List name={[phaseField.name, "steps"]}>
                 {(stepFields, { add, remove }) => (
-                  <Flex vertical gap={4}>
+                  <Flex vertical gap={8}>
                     {stepFields.map((stepField, j) => (
-                      <div key={stepField.key}>
-                      <Flex gap={8} align="start" wrap>
-                        <Typography.Text style={{ width: 24, paddingTop: 5 }}>{j + 1}.</Typography.Text>
+                      // Her adım kendi kutusunda: dar ekranda alanlar alt alta, genişte ad ve açıklama yan yana.
+                      <div key={stepField.key} style={{ border: "1px solid #f0f0f0", borderRadius: 8, padding: 12 }}>
+                        <Flex justify="space-between" align="center" style={{ marginBottom: 8 }}>
+                          <Typography.Text strong>{j + 1}. adım</Typography.Text>
+                          <Button size="small" type="text" danger icon={<DeleteOutlined />} disabled={stepFields.length === 1} onClick={() => remove(stepField.name)}>
+                            Sil
+                          </Button>
+                        </Flex>
                         <Form.Item name={[stepField.name, "id"]} hidden>
                           <Input />
                         </Form.Item>
-                        <Form.Item name={[stepField.name, "title"]} rules={[{ required: true, whitespace: true, message: "Adım adı zorunlu" }]} style={{ width: 220, marginBottom: 12 }}>
-                          <Input placeholder="Adım adı" />
+                        <Flex wrap style={{ columnGap: 8 }}>
+                          <Form.Item name={[stepField.name, "title"]} rules={[{ required: true, whitespace: true, message: "Adım adı zorunlu" }]} style={{ flex: "1 1 180px", marginBottom: 8 }}>
+                            <Input placeholder="Adım adı" />
+                          </Form.Item>
+                          <Form.Item name={[stepField.name, "description"]} rules={[{ required: true, whitespace: true, message: "Açıklama zorunlu" }]} style={{ flex: "2 1 240px", marginBottom: 8 }}>
+                            <Input placeholder="Açıklama" />
+                          </Form.Item>
+                        </Flex>
+                        <Form.Item name={[stepField.name, "media"]} noStyle>
+                          <MediaField />
                         </Form.Item>
-                        <Form.Item name={[stepField.name, "description"]} rules={[{ required: true, whitespace: true, message: "Açıklama zorunlu" }]} style={{ flex: 1, minWidth: 200, marginBottom: 12 }}>
-                          <Input placeholder="Açıklama" />
-                        </Form.Item>
-                        <Button icon={<DeleteOutlined />} aria-label="Adımı sil" disabled={stepFields.length === 1} onClick={() => remove(stepField.name)} />
-                      </Flex>
-                      <Form.Item name={[stepField.name, "media"]} noStyle>
-                        <MediaField />
-                      </Form.Item>
                       </div>
                     ))}
                     <Button type="dashed" icon={<PlusOutlined />} onClick={() => add(emptyStep())}>

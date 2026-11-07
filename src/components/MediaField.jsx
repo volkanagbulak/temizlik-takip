@@ -27,7 +27,7 @@ export function MediaField({ value, onChange }) {
   }
 
   return (
-    <Flex gap={12} align="center" wrap style={{ paddingLeft: 32, marginBottom: 12 }}>
+    <Flex gap={8} align="center" wrap>
       {value && <StepMedia src={value} width={160} compact />}
       <Upload accept="image/*,video/*" showUploadList={false} beforeUpload={handleFile}>
         <Button size="small" icon={<PaperClipOutlined />}>

@@ -32,25 +32,15 @@ export function NewProcedurePage() {
 
   return (
     <Form layout="vertical" initialValues={{ category: "normal", materialRequired: false, machineIds: [], phases: [FIRST_PHASE] }} onFinish={handleSave}>
-      <Card
-        title="Yeni prosedür"
-        extra={
-          <Flex gap={8}>
-            <Button onClick={() => navigate("/procedures")}>Vazgeç</Button>
-            <Button type="primary" htmlType="submit" loading={pending}>
-              Prosedürü kaydet
-            </Button>
-          </Flex>
-        }
-      >
-        <Flex gap={16} wrap>
-          <Form.Item name="code" label="Kod" extra="Benzersiz olmalı, örn. TP-03" rules={[{ required: true, whitespace: true, message: "Kod zorunlu" }]} style={{ width: 200 }}>
+      <Card title="Yeni prosedür">
+        <Flex wrap style={{ columnGap: 16 }}>
+          <Form.Item name="code" label="Kod" extra="Benzersiz olmalı, örn. TP-03" rules={[{ required: true, whitespace: true, message: "Kod zorunlu" }]} style={{ flex: "1 1 160px" }}>
             <Input />
           </Form.Item>
-          <Form.Item name="name" label="Ad" rules={[{ required: true, whitespace: true, message: "Ad zorunlu" }]} style={{ flex: 1, minWidth: 240 }}>
+          <Form.Item name="name" label="Ad" rules={[{ required: true, whitespace: true, message: "Ad zorunlu" }]} style={{ flex: "2 1 240px" }}>
             <Input />
           </Form.Item>
-          <Form.Item name="category" label="Tür" style={{ width: 200 }}>
+          <Form.Item name="category" label="Tür" style={{ flex: "1 1 160px" }}>
             <Select options={CATEGORIES} />
           </Form.Item>
         </Flex>
@@ -66,6 +56,13 @@ export function NewProcedurePage() {
           <Switch />
         </Form.Item>
         <PhasesEditor />
+        {/* Form uzun olduğu için butonlar sonda, dar ekranda başlığı da sıkıştırmıyor. */}
+        <Flex gap={8} justify="flex-end" style={{ marginTop: 24 }}>
+          <Button onClick={() => navigate("/procedures")}>Vazgeç</Button>
+          <Button type="primary" htmlType="submit" loading={pending}>
+            Prosedürü kaydet
+          </Button>
+        </Flex>
       </Card>
     </Form>
   );

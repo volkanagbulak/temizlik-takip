@@ -43,7 +43,8 @@ export function StepMedia({ src, width = 320, compact = false }) {
   if (media.video) {
     const style = { width, maxWidth: "100%", borderRadius: 8, display: "block", cursor: compact ? "pointer" : undefined };
     if (compact) {
-      return <video src={media.url} muted preload="metadata" title="Oynatmak için tıkla" style={style} onClick={(e) => (e.target.paused ? e.target.play() : e.target.pause())} />;
+      // #t=1: önizlemede ilk kare yerine 1. saniyedeki kare görünsün, ilk kare çoğunlukla boş.
+      return <video src={`${media.url}#t=1`} muted preload="metadata" title="Oynatmak için tıkla" style={style} onClick={(e) => (e.target.paused ? e.target.play() : e.target.pause())} />;
     }
     return <video src={media.url} controls preload="metadata" style={style} />;
   }

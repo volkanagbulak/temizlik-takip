@@ -140,17 +140,7 @@ export function ProcedureDetailPage() {
 
       {editing ? (
         <Form key={latest.version} layout="vertical" initialValues={initialValues} onFinish={handleSave}>
-          <Card
-            title={`${procedure.code} v${latest.version + 1} hazırlanıyor`}
-            extra={
-              <Flex gap={8}>
-                <Button onClick={() => setEditing(false)}>Vazgeç</Button>
-                <Button type="primary" htmlType="submit" loading={pending}>
-                  Yeni versiyonu kaydet
-                </Button>
-              </Flex>
-            }
-          >
+          <Card title={`${procedure.code} v${latest.version + 1} hazırlanıyor`}>
             <Alert type="info" title="Açık ve geçmiş kayıtlar etkilenmez. Bundan sonra açılan kayıtlar yeni versiyonla açılır." style={{ marginBottom: 16 }} />
             <Form.Item name="note" label="Değişiklik nedeni" rules={[{ required: true, whitespace: true, message: "Değişiklik nedeni zorunlu" }]}>
               <Input placeholder="Örn. Ön hazırlık süresi denetim talebiyle 20 dakikaya çıkarıldı" />
@@ -159,6 +149,12 @@ export function ProcedureDetailPage() {
               <Switch />
             </Form.Item>
             <PhasesEditor />
+            <Flex gap={8} justify="flex-end" style={{ marginTop: 24 }}>
+              <Button onClick={() => setEditing(false)}>Vazgeç</Button>
+              <Button type="primary" htmlType="submit" loading={pending}>
+                Yeni versiyonu kaydet
+              </Button>
+            </Flex>
           </Card>
         </Form>
       ) : (
