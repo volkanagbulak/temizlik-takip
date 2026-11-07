@@ -1,5 +1,5 @@
 // src/fakeBackend/cleaningService.js
-import { phaseStats } from "../utils/time";
+import { isExpired, phaseStats } from "../utils/time";
 // Bu dosya backend'in vereceği cevapları taklit ediyor. Boş alan gibi kontroller formda,
 // makine, yetki ve adım sırası gibi kurallar burada. Doküman yalnızca ekran kontrolünü
 // yeterli bulmuyor. Hata kodları: 403 yetki, 409 çakışma, 422 iş kuralı.
@@ -120,6 +120,8 @@ export function openRecord(db, user, form) {
     const material = db.materials.find((m) => m.id === materialId);
     const selected = material?.lots.find((l) => l.lot === lot);
     if (!selected) fail("Seçilen malzeme bulunamadı.", 422);
+    // Son kullanma tarihi geçmiş malzeme kullanılamaz (vakada yok, bizim varsayımımız).
+    if (isExpired(selected.expiry)) fail(`${material.code} ${lot} lotunun son kullanma tarihi geçmiş.`, 422);
     return { code: material.code, name: material.name, ...selected };
   });
   // Formdaki zorunluluk kontrolü kullanıcıya kolaylık, asıl kontrol burada.
@@ -197,26 +199,85 @@ export function openRecord(db, user, form) {
 // Tanım işlemlerini de denetim izine yazıyorum.
 export function addMachine(db, user, form) {
   requireAdmin(user);
+  const code = form.code?.trim().toUpperCase();
+  const name = form.name?.trim();
+  if (!code || !name) fail("Makine kodu ve adı zorunlu.", 422);
+  if (!db.lines.some((l) => l.id === form.lineId)) fail("Hat bulunamadı.", 422);
+  // Kayıt numarası makine kodunu içerdiği için kod benzersiz olmalı.
+  if (db.machines.some((m) => m.code === code)) fail(`${code} kodlu makine zaten var.`, 409);
   const machine = {
     id: `machine${db.machines.length + 1}`,
     lineId: form.lineId,
-    code: form.code.trim(),
-    name: form.name.trim(),
+    code,
+    name,
     active: true,
   };
   db.machines.push(machine);
   form.procedureIds?.forEach((id) => db.procedures.find((p) => p.id === id).machineIds.push(machine.id));
-  addLog(db, user, null, "Makine eklendi", machine.code);
+  addLog(db, user, null, "Makine eklendi", `${machine.code} ${machine.name}`);
+  return machine;
 }
 
 // Makineyi silmiyorum, pasif yapıyorum. Böylece eski kayıtlar kaybolmuyor.
 export function setMachineActive(db, user, machineId, active) {
   requireAdmin(user);
   const machine = db.machines.find((m) => m.id === machineId);
+  if (!machine) fail("Makine bulunamadı.", 404);
   // Açık kaydı olan makine kullanımdan kaldırılamıyor.
   if (!active && getMachineLock(db, machineId, Date.now())) fail("Bu makinede açık kayıt var.", 409);
   machine.active = active;
   addLog(db, user, null, active ? "Makine geri alındı" : "Makine kaldırıldı", machine.code);
+}
+
+// Tanım değişince eski versiyona dokunulmuyor, yeni versiyon ekleniyor. Kayıtlar açıldıkları
+// andaki prosedürün kopyasını taşıdığı için etkilenmiyor, yeni kayıtlar yeni versiyonla açılıyor.
+// Değiştirilebilenler vakadaki örnekler: faz minimum süresi, adım açıklaması, malzeme zorunluluğu.
+export function createProcedureVersion(db, user, procedureId, form) {
+  requireAdmin(user);
+  const procedure = db.procedures.find((p) => p.id === procedureId);
+  if (!procedure) fail("Prosedür bulunamadı.", 404);
+  const latest = procedure.versions.at(-1);
+  // İki yönetici aynı anda düzenlerse sonradan kaydeden, öncekinin değişikliğini ezmesin.
+  if (form.baseVersion !== latest.version) fail("Prosedür başka biri tarafından güncellendi, sayfayı yenile.", 409);
+  if (!form.note?.trim()) fail("Değişiklik nedeni zorunlu.", 422);
+
+  const phases = latest.phases.map((phase) => {
+    const changed = form.phases?.find((p) => p.id === phase.id);
+    const minMinutes = changed?.minMinutes ?? phase.minMinutes;
+    if (!Number.isInteger(minMinutes) || minMinutes < 1) fail(`${phase.name} için minimum süre en az 1 dakika olmalı.`, 422);
+    return {
+      ...structuredClone(phase),
+      minMinutes,
+      steps: phase.steps.map((step) => {
+        const description = (changed?.steps?.find((s) => s.id === step.id)?.description ?? step.description).trim();
+        if (!description) fail(`"${step.title}" adımının açıklaması boş olamaz.`, 422);
+        return { ...structuredClone(step), description };
+      }),
+    };
+  });
+  const materialRequired = form.materialRequired ?? latest.materialRequired;
+  // Hiçbir şey değişmediyse boş bir versiyon üretmiyorum.
+  if (materialRequired === latest.materialRequired && JSON.stringify(phases) === JSON.stringify(latest.phases)) {
+    fail("Değişiklik yok.", 422);
+  }
+
+  const next = { version: latest.version + 1, note: form.note.trim(), createdAt: Date.now(), createdBy: user.id, materialRequired, phases };
+  procedure.versions.push(next);
+  addLog(db, user, null, "Prosedür versiyonu oluşturuldu", `${procedure.code} v${next.version}: ${next.note}`);
+  return next;
+}
+
+// Malzemeye yeni parti/lot ekleniyor. Eski lotlar silinmiyor, kayıtlar onları göstermeye devam ediyor.
+export function addMaterialLot(db, user, materialId, form) {
+  requireAdmin(user);
+  const material = db.materials.find((m) => m.id === materialId);
+  if (!material) fail("Malzeme bulunamadı.", 404);
+  const lot = form.lot?.trim();
+  if (!lot) fail("Lot numarası zorunlu.", 422);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(form.expiry ?? "")) fail("Son kullanma tarihi geçersiz.", 422);
+  if (material.lots.some((l) => l.lot === lot)) fail(`${lot} lotu zaten tanımlı.`, 409);
+  material.lots.push({ lot, expiry: form.expiry });
+  addLog(db, user, null, "Lot eklendi", `${material.code} ${lot} SKT ${form.expiry}`);
 }
 
 //temizlik aşamaları

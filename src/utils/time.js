@@ -36,6 +36,10 @@ export function recordStats(record, now) {
   return { phases, workMs, effortMs, elapsedMs, gapMs: Math.max(0, elapsedMs - workMs) };
 }
 
+// Son kullanma tarihi bugünden önceyse lot kullanılamaz. Tarihler "YYYY-AA-GG" biçiminde,
+// bu yüzden metin olarak karşılaştırmak yeterli.
+export const isExpired = (expiry, now = Date.now()) => expiry < new Date(now).toISOString().slice(0, 10);
+
 export function formatDuration(ms) {
   const totalSeconds = Math.round(ms / 1000);
   const hours = Math.floor(totalSeconds / 3600);

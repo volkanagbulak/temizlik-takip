@@ -39,6 +39,10 @@ const routes = [
   { method: "post", path: "/machines", run: (db, user, _params, body) => cleaningService.addMachine(db, user, body) },
   { method: "post", path: "/machines/:id/active", run: (db, user, [id], body) => cleaningService.setMachineActive(db, user, id, body.active) },
 
+  // Tanımlar (yalnızca yönetici, kontrol serviste)
+  { method: "post", path: "/procedures/:id/versions", run: (db, user, [id], body) => cleaningService.createProcedureVersion(db, user, id, body) },
+  { method: "post", path: "/materials/:id/lots", run: (db, user, [id], body) => cleaningService.addMaterialLot(db, user, id, body) },
+
   // Kayıtlar
   { method: "get", path: "/records", run: (db, user) => db.records.map((r) => ({ ...r, permissions: cleaningService.getPermissions(r, user) })) },
   { method: "get", path: "/records/:id", run: (db, user, [id]) => getRecordDetail(db, id, user) },

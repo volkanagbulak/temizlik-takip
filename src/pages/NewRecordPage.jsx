@@ -7,6 +7,7 @@ import { getMachinesApi } from "../api/machineApi";
 import { openRecordApi } from "../api/recordApi";
 import { getAvailabilityApi } from "../api/userApi";
 import { useAction } from "../hooks/useAction";
+import { isExpired } from "../utils/time";
 
 const toOptions = (items, label) =>
   items.map((item) => ({ value: item.id, label: label(item) }));
@@ -67,10 +68,12 @@ export function NewRecordPage({ user }) {
   const procedure = procedures.find((p) => p.id === procedureId);
   // Malzeme zorunluluğu seçilen formun son versiyonundan geliyor.
   const materialRequired = procedure?.versions.at(-1).materialRequired;
+  // SKT'si geçmiş lot seçilemiyor. Son kararı yine servis veriyor.
   const lotOptions = definitions.materials.flatMap((m) =>
     m.lots.map((l) => ({
       value: `${m.id}|${l.lot}`,
-      label: `${m.code} ${m.name} / ${l.lot} / SKT ${l.expiry}`,
+      label: `${m.code} ${m.name} / ${l.lot} / SKT ${l.expiry}${isExpired(l.expiry) ? " (süresi geçmiş)" : ""}`,
+      disabled: isExpired(l.expiry),
     })),
   );
   // Kaydı açan zaten sorumlu, kendini yardımcı olarak seçemesin.

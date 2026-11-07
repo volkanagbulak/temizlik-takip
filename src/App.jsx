@@ -5,8 +5,11 @@ import { AppLayout } from "./components/AppLayout";
 import { AdminRoute } from "./components/AdminRoute";
 import { ControlPage } from "./pages/ControlPage";
 import { LoginPage } from "./pages/LoginPage";
+import { MachinesPage } from "./pages/MachinesPage";
+import { MaterialsPage } from "./pages/MaterialsPage";
 import { HomePage } from "./pages/HomePage";
 import { NewRecordPage } from "./pages/NewRecordPage";
+import { ProceduresPage } from "./pages/ProceduresPage";
 import { RecordsPage } from "./pages/RecordsPage";
 import { RunPage } from "./pages/RunPage";
 
@@ -51,9 +54,9 @@ export default function App() {
 
         <Route element={<AdminRoute user={user} />}>
           <Route path="/control" element={<ControlPage />} />
-          <Route path="/procedures" element={<h1>Prosedürler</h1>} />
-          <Route path="/machines" element={<h1>Makineler</h1>} />
-          <Route path="/materials" element={<h1>Malzemeler</h1>} />
+          <Route path="/procedures" element={<ProceduresPage />} />
+          <Route path="/machines" element={<MachinesPage />} />
+          <Route path="/materials" element={<MaterialsPage />} />
           <Route path="/reports" element={<h1>Raporlar</h1>} />
         </Route>
       </Route>
