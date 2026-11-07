@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { useOutletContext, useParams } from "react-router-dom";
+import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { getRecordDetailApi } from "../api/recordApi";
 import { finishStepApi, pauseStepApi, resumeStepApi, setStepPeopleApi, startStepApi } from "../api/stepApi";
 import { getAvailabilityApi } from "../api/userApi";
-import { Alert, App, Button, Card, Col, Descriptions, Flex, Image, Input, Modal, Progress, Row, Select, Statistic, Steps } from "antd";
+import { Alert, App, Button, Card, Col, Descriptions, Flex, Input, Modal, Progress, Result, Row, Select, Statistic, Steps } from "antd";
+import { CancelRecordModal } from "../components/CancelRecordModal";
 import { StatusTag } from "../components/StatusTag";
+import { StepMedia } from "../components/StepMedia";
 import { useAction } from "../hooks/useAction";
 import { formatDuration, recordStats } from "../utils/time";
 
@@ -17,6 +19,8 @@ export function RunPage() {
   const { message } = App.useApp();
   const { recordId } = useParams();
   const { refreshKey } = useOutletContext();
+  const navigate = useNavigate();
+  const [missing, setMissing] = useState(false);
   const { run, pending } = useAction();
   const [detail, setDetail] = useState(null);
   const [people, setPeople] = useState([]);
@@ -25,6 +29,7 @@ export function RunPage() {
   const [finishReason, setFinishReason] = useState("");
   const [askPause, setAskPause] = useState(false);
   const [pauseReason, setPauseReason] = useState();
+  const [closing, setClosing] = useState(false);
 
   const refresh = () =>
     loadRun(recordId).then(([nextDetail, nextPeople]) => {
@@ -33,10 +38,14 @@ export function RunPage() {
     });
 
   useEffect(() => {
-    loadRun(recordId).then(([nextDetail, nextPeople]) => {
-      setDetail(nextDetail);
-      setPeople(nextPeople);
-    });
+    loadRun(recordId)
+      .then(([nextDetail, nextPeople]) => {
+        setDetail(nextDetail);
+        setPeople(nextPeople);
+        setMissing(false);
+      })
+      // Olmayan kayıt adresi açılırsa boş sayfa yerine bilgi gösteriliyor.
+      .catch(() => setMissing(true));
   }, [recordId, refreshKey]);
 
   useEffect(() => {
@@ -44,6 +53,9 @@ export function RunPage() {
     return () => clearInterval(timer);
   }, []);
 
+  if (missing) {
+    return <Result status="404" title="Kayıt bulunamadı" extra={<Button onClick={() => navigate("/")}>İşlerime dön</Button>} />;
+  }
   if (!detail) return null;
 
   // Yetkiyi servis hesaplıyor, ekran yalnızca buna göre buton gösteriyor.
@@ -121,12 +133,13 @@ export function RunPage() {
       <Col span={24}>
         <Card>
           <Descriptions
-            column={{ xs: 1, md: 4 }}
+            column={{ xs: 1, sm: 2, lg: 3, xxl: 5 }}
             items={[
               { key: "no", label: "Kayıt no", children: record.no },
               { key: "machine", label: "Makine", children: record.machine.code },
               { key: "procedure", label: "Prosedür", children: `${record.procedure.code} v${record.procedure.version}` },
               { key: "status", label: "Durum", children: <StatusTag status={record.status} /> },
+              { key: "detail", label: "Denetim izi", children: <Button size="small" onClick={() => navigate(`/records/${record.id}`)}>Kayıt detayı</Button> },
             ]}
           />
         </Card>
@@ -138,12 +151,22 @@ export function RunPage() {
         </Card>
       </Col>
       <Col xs={24} md={16}>
-        <Card title={record.status === "cancelled" ? "Kayıt kapatıldı" : (step?.title ?? "Temizlik tamamlandı")}>
+        <Card
+          title={record.status === "cancelled" ? "Kayıt kapatıldı" : (step?.title ?? "Temizlik tamamlandı")}
+          // Yönetici her açık kaydı, operatör yalnızca başlamamış kendi kaydını kapatabilir. Kararı servis veriyor.
+          extra={
+            permissions.canCancel && (
+              <Button danger size="small" onClick={() => setClosing(true)}>
+                Kaydı kapat
+              </Button>
+            )
+          }
+        >
           {record.status === "cancelled" && <Alert type="error" title={record.cancel.reason} style={{ marginBottom: 16 }} />}
           <Progress percent={Math.round((doneCount / record.steps.length) * 100)} format={() => `${doneCount} / ${record.steps.length} adım`} style={{ marginBottom: 16 }} />
-          {definition?.media && <Image width={240} src={definition.media} />}
+          <StepMedia src={definition?.media} />
           <p>{definition?.description}</p>
-          {step && <Select mode="multiple" value={step.people} options={peopleOptions} disabled={step.status === "running" || pending || !permissions.canEditPeople} onChange={handlePeople} style={{ width: "100%", marginBottom: 16 }} />}
+          {step && <Select mode="multiple" optionFilterProp="label" value={step.people} options={peopleOptions} disabled={step.status === "running" || pending || !permissions.canEditPeople} onChange={handlePeople} style={{ width: "100%", marginBottom: 16 }} />}
           {/* Görmek çalıştırmak değil: yetkisi olmayan kaydı görür ama adımı ilerletemez. */}
           {step && !permissions.canOperate && (
             <Alert type="info" title="Bu kaydı görüntülüyorsun. Adımı yalnızca kaydın sorumlusu ve adımda görevli kişiler ilerletebilir." style={{ marginBottom: 16 }} />
@@ -185,6 +208,18 @@ export function RunPage() {
           </Col>
         </Row>
       </Col>
+
+      {closing && (
+        <CancelRecordModal
+          record={record}
+          detailRequired={permissions.cancelDetailRequired}
+          onClose={() => setClosing(false)}
+          onDone={() => {
+            setClosing(false);
+            return refresh();
+          }}
+        />
+      )}
 
       <Modal title="Adımı duraklat" open={askPause && step?.status === "running"} onOk={handlePause} onCancel={() => setAskPause(false)}>
         <Select placeholder="Neden" value={pauseReason} onChange={setPauseReason} options={PAUSE_REASONS} style={{ width: "100%" }} />

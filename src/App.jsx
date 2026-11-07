@@ -3,14 +3,19 @@ import { useState } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { AppLayout } from "./components/AppLayout";
 import { AdminRoute } from "./components/AdminRoute";
+import { AuditPage } from "./pages/AuditPage";
 import { ControlPage } from "./pages/ControlPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MachinesPage } from "./pages/MachinesPage";
 import { MaterialsPage } from "./pages/MaterialsPage";
 import { HomePage } from "./pages/HomePage";
+import { NewProcedurePage } from "./pages/NewProcedurePage";
 import { NewRecordPage } from "./pages/NewRecordPage";
+import { ProcedureDetailPage } from "./pages/ProcedureDetailPage";
 import { ProceduresPage } from "./pages/ProceduresPage";
+import { RecordDetailPage } from "./pages/RecordDetailPage";
 import { RecordsPage } from "./pages/RecordsPage";
+import { ReportsPage } from "./pages/ReportsPage";
 import { RunPage } from "./pages/RunPage";
 
 const SESSION_KEY = "currentUser";
@@ -49,15 +54,18 @@ export default function App() {
         <Route path="/" element={<HomePage user={user} />} />
         <Route path="/records" element={<RecordsPage user={user} />} />
         <Route path="/records/new" element={<NewRecordPage user={user} />} />
-        <Route path="/records/:recordId" element={<h1>Kayıt detayı</h1>} />
+        <Route path="/records/:recordId" element={<RecordDetailPage />} />
         <Route path="/records/:recordId/run" element={<RunPage />} />
 
         <Route element={<AdminRoute user={user} />}>
           <Route path="/control" element={<ControlPage />} />
           <Route path="/procedures" element={<ProceduresPage />} />
+          <Route path="/procedures/new" element={<NewProcedurePage />} />
+          <Route path="/procedures/:procedureId" element={<ProcedureDetailPage />} />
           <Route path="/machines" element={<MachinesPage />} />
           <Route path="/materials" element={<MaterialsPage />} />
-          <Route path="/reports" element={<h1>Raporlar</h1>} />
+          <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/audit" element={<AuditPage />} />
         </Route>
       </Route>
 

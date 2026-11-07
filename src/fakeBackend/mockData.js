@@ -163,8 +163,8 @@ export const mockData = {
                 {
                   id: "s1",
                   title: "Makineyi durdur",
-                  description: "Hattı durdur, kilitle.",
-                  media: null,
+                  description: "Hattı durdur, şalteri kilitle ve etiketle.",
+                  media: "/kilitleme.jpg",
                 },
                 {
                   id: "s2",
@@ -206,8 +206,8 @@ export const mockData = {
                 {
                   id: "s7",
                   title: "Kimyasalla yıkama",
-                  description: "Seçilen malzemeyi kullan.",
-                  media: null,
+                  description: "Seçilen malzemeyi videodaki gibi uygula.",
+                  media: "/egitim.mp4",
                 },
                 {
                   id: "s8",
@@ -237,8 +237,8 @@ export const mockData = {
                 {
                   id: "s11",
                   title: "Görsel kontrol",
-                  description: "Kalıntı olmadığını kontrol et.",
-                  media: null,
+                  description: "Görseldeki listeye göre kalıntı olmadığını kontrol et.",
+                  media: "/gorsel-kontrol.jpg",
                 },
                 {
                   id: "s12",
@@ -278,8 +278,8 @@ export const mockData = {
                 {
                   id: "s2",
                   title: "Yüzeyleri sil",
-                  description: "Dış yüzeyleri sil.",
-                  media: null,
+                  description: "Dış yüzeyleri videodaki gibi sil.",
+                  media: "/yuzey-silme.mp4",
                 },
               ],
             },
@@ -308,14 +308,14 @@ export const mockData = {
                 {
                   id: "s1",
                   title: "Alanı güvene al",
-                  description: "Hattı durdur.",
-                  media: null,
+                  description: "Hattı durdur, bölgeyi dubalarla kapat.",
+                  media: "/alan-guvenlik.jpg",
                 },
                 {
                   id: "s2",
                   title: "Dökülmeyi temizle",
-                  description: "Bölgeyi temizle.",
-                  media: null,
+                  description: "Videodaki sırayla emici malzemeyle temizle.",
+                  media: "/dokulme.mp4",
                 },
               ],
             },

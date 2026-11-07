@@ -40,6 +40,14 @@ export function recordStats(record, now) {
 // bu yüzden metin olarak karşılaştırmak yeterli.
 export const isExpired = (expiry, now = Date.now()) => expiry < new Date(now).toISOString().slice(0, 10);
 
+// Raporlar için kısa biçim: ortalamalarda saniye gürültü yaratıyor. "51 dk", "1 sa 5 dk", "40 sn".
+export function formatShort(ms) {
+  const minutes = Math.round(ms / 60000);
+  if (minutes === 0) return `${Math.round(ms / 1000)} sn`;
+  if (minutes < 60) return `${minutes} dk`;
+  return `${Math.floor(minutes / 60)} sa ${minutes % 60} dk`;
+}
+
 export function formatDuration(ms) {
   const totalSeconds = Math.round(ms / 1000);
   const hours = Math.floor(totalSeconds / 3600);

@@ -146,10 +146,10 @@ export function NewRecordPage({ user }) {
             },
           ]}
         >
-          <Select mode="multiple" options={lotOptions} />
+          <Select mode="multiple" optionFilterProp="label" options={lotOptions} />
         </Form.Item>
         <Form.Item name="helperIds" label="Yardımcı personel">
-          <Select mode="multiple" options={helperOptions} />
+          <Select mode="multiple" optionFilterProp="label" options={helperOptions} />
         </Form.Item>
         <Form.Item
           name="workOrder"

@@ -30,7 +30,8 @@ export function RecordsPage({ user }) {
 
   const text = search.trim().toLowerCase();
   const filtered = records.filter((r) => {
-    const mine = r.ownerId === user.id || r.helperIds.includes(user.id);
+    // Sorumlu, yardımcı ya da herhangi bir adımında görevli olduğu kayıtlar.
+    const mine = r.ownerId === user.id || r.helperIds.includes(user.id) || r.steps.some((s) => s.people.includes(user.id));
     if (scope === "mine" && !mine) return false;
     if (status && r.status !== status) return false;
     const searchable = `${r.no} ${r.machine.code} ${r.machine.name} ${r.workOrder}`;

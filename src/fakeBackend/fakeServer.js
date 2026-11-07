@@ -1,5 +1,5 @@
 //Servisten data geliyor gibi davranmak için API
-import { loadDb, saveDb } from "./fakeDb";
+import { createDb, loadDb, saveDb } from "./fakeDb";
 import * as cleaningService from "./cleaningService";
 
 // "/records/:id" yazımını adresle karşılaştırılabilecek regex'e çevirir.
@@ -25,12 +25,21 @@ function getRecordDetail(db, id, user) {
   };
 }
 
+// Yalnızca demo için: gelen veri nesnesinin içini yeni örnek veriyle değiştirir.
+// Adapter yazma isteğinden sonra bu nesneyi kaydettiği için veri sıfırlanmış olur.
+function resetDemo(db) {
+  Object.keys(db).forEach((key) => delete db[key]);
+  Object.assign(db, createDb());
+}
+
 // Gerçek projede bu adresleri backend verirdi. Burada hangi adresin hangi işi yaptığını
 // ben tanımlıyorum, sayfalar ise normal bir servise istek atıyormuş gibi çalışıyor.
 const routes = [
   // Kullanıcı ve tanımlar
   // Giriş ekranı oturum açılmadan kullanıcıları okuyor, bu yüzden açık rota.
   { method: "get", path: "/users", public: true, run: (db) => db.users.filter((u) => u.active) },
+  // Yalnızca demo için. Giriş ekranından çağrıldığı için oturum istemiyor.
+  { method: "post", path: "/demo/reset", public: true, run: (db) => resetDemo(db) },
   { method: "get", path: "/users/availability", run: (db) => cleaningService.getAvailability(db) },
   { method: "get", path: "/definitions", run: (db) => getDefinitions(db) },
 
@@ -40,8 +49,16 @@ const routes = [
   { method: "post", path: "/machines/:id/active", run: (db, user, [id], body) => cleaningService.setMachineActive(db, user, id, body.active) },
 
   // Tanımlar (yalnızca yönetici, kontrol serviste)
+  { method: "post", path: "/procedures", run: (db, user, _params, body) => cleaningService.createProcedure(db, user, body) },
+  { method: "post", path: "/procedures/:id/machines", run: (db, user, [id], body) => cleaningService.setProcedureMachines(db, user, id, body.machineIds) },
   { method: "post", path: "/procedures/:id/versions", run: (db, user, [id], body) => cleaningService.createProcedureVersion(db, user, id, body) },
   { method: "post", path: "/materials/:id/lots", run: (db, user, [id], body) => cleaningService.addMaterialLot(db, user, id, body) },
+
+  // Denetim izi (yalnızca yönetici, kontrol serviste)
+  { method: "get", path: "/audit", run: (db, user) => cleaningService.getAuditLog(db, user) },
+
+  // Raporlar (yalnızca yönetici, kontrol serviste)
+  { method: "get", path: "/reports", run: (db, user) => cleaningService.getReport(db, user) },
 
   // Kayıtlar
   { method: "get", path: "/records", run: (db, user) => db.records.map((r) => ({ ...r, permissions: cleaningService.getPermissions(r, user) })) },

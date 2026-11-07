@@ -8,6 +8,7 @@ import {
   FileTextOutlined,
   PlusCircleOutlined,
   ProfileOutlined,
+  SafetyCertificateOutlined,
   ToolOutlined,
 } from "@ant-design/icons";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -26,17 +27,24 @@ const ADMIN_MENU = [
   { key: "/machines", label: "Makineler", icon: <ToolOutlined /> },
   { key: "/materials", label: "Malzemeler", icon: <ExperimentOutlined /> },
   { key: "/reports", label: "Raporlar", icon: <BarChartOutlined /> },
+  { key: "/audit", label: "Denetim izi", icon: <SafetyCertificateOutlined /> },
 ];
 
 export function Menu({ user }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const items = user.role === "admin" ? ADMIN_MENU : OPERATOR_MENU;
+  // Alt sayfada (örn. /procedures/procedure1) üst menü seçili kalsın. En uzun eşleşen anahtar seçiliyor.
+  const selected = items
+    .map((item) => item.key)
+    .filter((key) => location.pathname === key || (key !== "/" && location.pathname.startsWith(`${key}/`)))
+    .sort((a, b) => b.length - a.length)[0];
 
   return (
     <AntMenu
       mode="inline"
-      items={user.role === "admin" ? ADMIN_MENU : OPERATOR_MENU}
-      selectedKeys={[location.pathname]}
+      items={items}
+      selectedKeys={selected ? [selected] : []}
       onClick={({ key }) => navigate(key)}
       style={{ borderInlineEnd: 0 }}
     />

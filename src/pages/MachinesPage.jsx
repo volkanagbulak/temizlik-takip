@@ -94,7 +94,7 @@ export function MachinesPage() {
             <Input />
           </Form.Item>
           <Form.Item name="procedureIds" label="Kullanılabilecek formlar">
-            <Select mode="multiple" options={definitions.procedures.map((p) => ({ value: p.id, label: `${p.code} ${p.name}` }))} />
+            <Select mode="multiple" optionFilterProp="label" options={definitions.procedures.map((p) => ({ value: p.id, label: `${p.code} ${p.name}` }))} />
           </Form.Item>
         </Form>
       </Modal>

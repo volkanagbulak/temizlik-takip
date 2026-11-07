@@ -1,5 +1,5 @@
 // src/fakeBackend/cleaningService.js
-import { isExpired, phaseStats } from "../utils/time";
+import { isExpired, phaseStats, recordStats } from "../utils/time";
 // Bu dosya backend'in vereceği cevapları taklit ediyor. Boş alan gibi kontroller formda,
 // makine, yetki ve adım sırası gibi kurallar burada. Doküman yalnızca ekran kontrolünü
 // yeterli bulmuyor. Hata kodları: 403 yetki, 409 çakışma, 422 iş kuralı.
@@ -39,6 +39,8 @@ export function getPermissions(record, user) {
     canOperate: open && canOperateStep(record, step, user),
     canEditPeople: open && canEditPeople(record, user),
     canCancel: canCancel(record, user),
+    // Yönetici kapatırken açıklama zorunlu, ekran pencereyi buna göre açıyor.
+    cancelDetailRequired: user.role === "admin",
   };
 }
 
@@ -49,6 +51,9 @@ function requireAdmin(user) {
 function requireOperateStep(record, step, user) {
   if (!canOperateStep(record, step, user)) fail("Bu adımı yalnızca kaydın sorumlusu ve adımda görevli kişiler ilerletebilir.", 403);
 }
+
+// Kullanıcının değil sistemin yaptığı işlemler denetimde "Sistem" olarak görünsün diye.
+const SYSTEM = { id: "system" };
 
 // "Kim, ne zaman, ne yaptı" sorusunun cevabı burada birikiyor.
 export function addLog(db, user, recordId, action, detail = "") {
@@ -138,7 +143,8 @@ export function openRecord(db, user, form) {
   if (lock) {
     lock.record.status = "cancelled";
     lock.record.cancel = { at: now, by: "system", reason: "Rezervasyon süresi doldu." };
-    addLog(db, user, lock.record.id, "Rezervasyon süresi doldu");
+    // Kaydı kapatan yeni kaydı açan kişi değil sistem; denetimde de öyle görünmeli.
+    addLog(db, SYSTEM, lock.record.id, "Rezervasyon süresi doldu");
   }
 
   const line = db.lines.find((l) => l.id === machine.lineId);
@@ -232,6 +238,90 @@ export function setMachineActive(db, user, machineId, active) {
 // Tanım değişince eski versiyona dokunulmuyor, yeni versiyon ekleniyor. Kayıtlar açıldıkları
 // andaki prosedürün kopyasını taşıdığı için etkilenmiyor, yeni kayıtlar yeni versiyonla açılıyor.
 // Değiştirilebilenler vakadaki örnekler: faz minimum süresi, adım açıklaması, malzeme zorunluluğu.
+// Faz ve adım listesini ekrandan gelen veriden kuruyor. Var olan faz ve adımlar kimliğini koruyor,
+// çünkü raporlar fazları kimlikle grupluyor. Yeni eklenenlere prosedürde hiç kullanılmamış bir kimlik veriliyor.
+function buildPhases(formPhases, procedure) {
+  if (!Array.isArray(formPhases) || formPhases.length === 0) fail("En az bir faz olmalı.", 422);
+  const latest = procedure?.versions.at(-1);
+  const usedIds = (procedure?.versions ?? []).flatMap((v) => v.phases.flatMap((p) => [p.id, ...p.steps.map((s) => s.id)]));
+  const newId = (prefix) => {
+    let n = 1;
+    while (usedIds.includes(`${prefix}${n}`)) n++;
+    usedIds.push(`${prefix}${n}`);
+    return `${prefix}${n}`;
+  };
+
+  return formPhases.map((formPhase) => {
+    const oldPhase = latest?.phases.find((p) => p.id === formPhase.id);
+    const name = formPhase.name?.trim();
+    if (!name) fail("Faz adı boş olamaz.", 422);
+    const minMinutes = formPhase.minMinutes;
+    if (!Number.isInteger(minMinutes) || minMinutes < 1) fail(`${name} için minimum süre en az 1 dakika olmalı.`, 422);
+    if (!Array.isArray(formPhase.steps) || formPhase.steps.length === 0) fail(`${name} fazında en az bir adım olmalı.`, 422);
+
+    const steps = formPhase.steps.map((formStep) => {
+      const oldStep = latest?.phases.flatMap((p) => p.steps).find((s) => s.id === formStep.id);
+      const title = formStep.title?.trim();
+      const description = formStep.description?.trim();
+      if (!title) fail(`${name} fazında adı boş bir adım var.`, 422);
+      if (!description) fail(`"${title}" adımının açıklaması boş olamaz.`, 422);
+      // Medya gönderilmediyse var olan adımın medyası korunuyor, null gönderildiyse kaldırılıyor.
+      const media = formStep.media === undefined ? (oldStep?.media ?? null) : formStep.media || null;
+      if (media && !/^(\/|media:)/.test(media)) fail(`"${title}" adımının görsel veya videosu geçersiz.`, 422);
+      return { id: oldStep ? oldStep.id : newId("s"), title, description, media };
+    });
+    return { id: oldPhase ? oldPhase.id : newId("ph"), name, minMinutes, steps };
+  });
+}
+
+export function createProcedure(db, user, form) {
+  requireAdmin(user);
+  const code = form.code?.trim().toUpperCase();
+  const name = form.name?.trim();
+  if (!code || !name) fail("Prosedür kodu ve adı zorunlu.", 422);
+  if (!["normal", "emergency"].includes(form.category)) fail("Prosedür türü seçilmeli.", 422);
+  if (db.procedures.some((p) => p.code === code)) fail(`${code} kodlu prosedür zaten var.`, 409);
+  const machineIds = (form.machineIds ?? []).filter((id) => db.machines.some((m) => m.id === id && m.active));
+  // Makinesi olmayan prosedür yeni kayıt formunda hiç listelenmez.
+  if (machineIds.length === 0) fail("En az bir makine seçilmeli.", 422);
+  const phases = buildPhases(form.phases, null);
+
+  const procedure = {
+    id: `procedure${db.procedures.length + 1}`,
+    code,
+    name,
+    category: form.category,
+    machineIds,
+    versions: [{ version: 1, note: "İlk yayın", createdAt: Date.now(), createdBy: user.id, materialRequired: Boolean(form.materialRequired), phases }],
+  };
+  db.procedures.push(procedure);
+  addLog(db, user, null, "Prosedür oluşturuldu", `${code} ${name}`);
+  return procedure;
+}
+
+// Makine listesi prosedürün adımlarını değiştirmediği için versiyonlanmıyor. Açık kayıtlar
+// etkilenmiyor, liste yalnızca yeni kayıt formunda hangi prosedürün çıkacağını belirliyor.
+export function setProcedureMachines(db, user, procedureId, machineIds) {
+  requireAdmin(user);
+  const procedure = db.procedures.find((p) => p.id === procedureId);
+  if (!procedure) fail("Prosedür bulunamadı.", 404);
+  const ids = [...new Set(machineIds ?? [])];
+  if (ids.length === 0) fail("En az bir makine seçilmeli.", 422);
+  ids.forEach((id) => {
+    const machine = db.machines.find((m) => m.id === id);
+    if (!machine) fail("Makine bulunamadı.", 422);
+    // Kullanımdan kaldırılmış makine yeni eklenemez, zaten bağlıysa listede kalabilir.
+    if (!machine.active && !procedure.machineIds.includes(id)) fail(`${machine.code} kullanımda değil.`, 422);
+  });
+  const before = [...procedure.machineIds].sort();
+  if (JSON.stringify(before) === JSON.stringify([...ids].sort())) fail("Değişiklik yok.", 422);
+
+  procedure.machineIds = ids;
+  const codes = ids.map((id) => db.machines.find((m) => m.id === id).code).join(", ");
+  addLog(db, user, null, "Prosedür makineleri değiştirildi", `${procedure.code}: ${codes}`);
+  return procedure;
+}
+
 export function createProcedureVersion(db, user, procedureId, form) {
   requireAdmin(user);
   const procedure = db.procedures.find((p) => p.id === procedureId);
@@ -241,20 +331,8 @@ export function createProcedureVersion(db, user, procedureId, form) {
   if (form.baseVersion !== latest.version) fail("Prosedür başka biri tarafından güncellendi, sayfayı yenile.", 409);
   if (!form.note?.trim()) fail("Değişiklik nedeni zorunlu.", 422);
 
-  const phases = latest.phases.map((phase) => {
-    const changed = form.phases?.find((p) => p.id === phase.id);
-    const minMinutes = changed?.minMinutes ?? phase.minMinutes;
-    if (!Number.isInteger(minMinutes) || minMinutes < 1) fail(`${phase.name} için minimum süre en az 1 dakika olmalı.`, 422);
-    return {
-      ...structuredClone(phase),
-      minMinutes,
-      steps: phase.steps.map((step) => {
-        const description = (changed?.steps?.find((s) => s.id === step.id)?.description ?? step.description).trim();
-        if (!description) fail(`"${step.title}" adımının açıklaması boş olamaz.`, 422);
-        return { ...structuredClone(step), description };
-      }),
-    };
-  });
+  // Adım ve faz eklenebilir, silinebilir. Açık ve geçmiş kayıtlar kendi kopyasını taşıdığı için etkilenmez.
+  const phases = buildPhases(form.phases, procedure);
   const materialRequired = form.materialRequired ?? latest.materialRequired;
   // Hiçbir şey değişmediyse boş bir versiyon üretmiyorum.
   if (materialRequired === latest.materialRequired && JSON.stringify(phases) === JSON.stringify(latest.phases)) {
@@ -408,6 +486,59 @@ function checkPeopleFree(db, step) {
   }
 }
 
+// Raporlar yalnızca tamamlanmış kayıtlardan hesaplanıyor. Vakadaki iki soruya cevap veriyor:
+// "Bu makinenin temizliği 30 dakika mı sürüyor, 50 dakika mı?" ve "Hangi aşama uzun sürüyor?"
+export function getReport(db, user) {
+  requireAdmin(user);
+  const completed = db.records.filter((r) => r.status === "completed");
+  const rows = completed.map((record) => ({ record, stats: recordStats(record, record.completedAt) }));
+  const average = (total, count) => Math.round(total / count);
+
+  const machines = {};
+  const phases = {};
+  for (const { record, stats } of rows) {
+    // Makine ve form birlikte gruplanıyor: aynı makinedeki 50 dakikalık normal temizlik ile
+    // 5 dakikalık acil müdahale aynı ortalamaya karışırsa sonuç anlamsız olur.
+    const machineKey = `${record.machine.id}|${record.procedure.code}`;
+    const m = (machines[machineKey] ??= { key: machineKey, code: record.machine.code, name: record.machine.name, procedureCode: record.procedure.code, category: record.category, count: 0, workMs: 0, effortMs: 0, gapMs: 0, minWorkMs: Infinity, maxWorkMs: 0, deviations: 0 });
+    m.count += 1;
+    m.workMs += stats.workMs;
+    m.effortMs += stats.effortMs;
+    m.gapMs += stats.gapMs;
+    m.minWorkMs = Math.min(m.minWorkMs, stats.workMs);
+    m.maxWorkMs = Math.max(m.maxWorkMs, stats.workMs);
+    m.deviations += record.deviations.length;
+
+    record.procedure.phases.forEach((phase, i) => {
+      // Aynı faz farklı versiyonlarda farklı minimum süreye sahip olabilir, hepsini topluyorum.
+      const key = `${record.procedure.code}|${phase.id}`;
+      const p = (phases[key] ??= { key, procedureCode: record.procedure.code, phaseName: phase.name, order: i, count: 0, workMs: 0, minMinutes: [], belowMin: 0 });
+      p.count += 1;
+      p.workMs += stats.phases[i].workMs;
+      if (!p.minMinutes.includes(phase.minMinutes)) p.minMinutes.push(phase.minMinutes);
+      if (!stats.phases[i].metMin) p.belowMin += 1;
+    });
+  }
+
+  return {
+    totals: {
+      completed: completed.length,
+      emergency: completed.filter((r) => r.category === "emergency").length,
+      cancelled: db.records.filter((r) => r.status === "cancelled").length,
+      open: db.records.filter((r) => r.status === "opened" || r.status === "in_progress").length,
+    },
+    byMachine: Object.values(machines)
+      .map(({ workMs, effortMs, gapMs, ...m }) => ({ ...m, avgWorkMs: average(workMs, m.count), avgEffortMs: average(effortMs, m.count), avgGapMs: average(gapMs, m.count) }))
+      .sort((a, b) => b.avgWorkMs - a.avgWorkMs),
+    byPhase: Object.values(phases)
+      .map(({ workMs, ...p }) => ({ ...p, avgWorkMs: average(workMs, p.count) }))
+      .sort((a, b) => a.procedureCode.localeCompare(b.procedureCode) || a.order - b.order),
+    records: rows
+      .map(({ record, stats }) => ({ id: record.id, no: record.no, machineCode: record.machine.code, procedure: `${record.procedure.code} v${record.procedure.version}`, category: record.category, completedAt: record.completedAt, workMs: stats.workMs, effortMs: stats.effortMs, gapMs: stats.gapMs, deviations: record.deviations.length }))
+      .sort((a, b) => b.completedAt - a.completedAt),
+  };
+}
+
 // Kayıt silinmiyor, nedeniyle kapanıyor. Operatör yalnızca kendi başlamamış kaydını,
 // yönetici ise açıklama yazarak her açık kaydı kapatabiliyor.
 export function cancelRecord(db, user, recordId, reason, detail = "") {
@@ -431,4 +562,13 @@ export function cancelRecord(db, user, recordId, reason, detail = "") {
   record.status = "cancelled";
   record.cancel = { at: now, by: user.id, reason: detail ? `${reason}: ${detail}` : reason };
   addLog(db, user, record.id, "Kayıt kapatıldı", record.cancel.reason);
+}
+
+// Tüm işlemlerin izi, en yeni en üstte. Tanım işlemleri hiçbir kayda bağlı olmadığı için yalnızca burada görünüyor.
+export function getAuditLog(db, user) {
+  requireAdmin(user);
+  return db.auditLog
+    // Kayıtlar silinmediği için sıra numarası satırın kalıcı kimliği olarak kullanılabiliyor.
+    .map((log, index) => ({ ...log, id: index, recordNo: log.recordId ? db.records.find((r) => r.id === log.recordId)?.no : null }))
+    .reverse();
 }
