@@ -2,7 +2,7 @@
 
 Üretim makinelerinin temizlik sürecini kâğıt formdan çıkarıp adım adım dijital olarak takip eden bir demo. Operatör kaydı açar, tanımlı fazları ve adımları sırayla yürütür; başlangıç ve bitiş zamanlarını sistem yazar, süre ile insan eforu ayrı hesaplanır. Yönetici tanımları yönetir, takılan kayıtlara müdahale eder ve raporları görür.
 
-**Canlı demo:** _(Vercel linki buraya)_
+**Canlı demo:** [https://temizlik-takip-three.vercel.app/login](https://temizlik-takip-three.vercel.app/login)
 
 ## Çalıştırma
 
@@ -15,10 +15,10 @@ Vite'ın verdiği adresi aç (genelde `http://localhost:5173`). Backend yok; ver
 
 ## Demo kullanıcıları
 
-| Kullanıcı | Rol |
-| --- | --- |
+| Kullanıcı                              | Rol      |
+| -------------------------------------- | -------- |
 | Ahmet Yılmaz, Mehmet Demir, Hakan Kaya | Operatör |
-| Zeynep Arslan | Yönetici |
+| Zeynep Arslan                          | Yönetici |
 
 Şifre yok, giriş ekranında kullanıcı seçiliyor. Her sekme ayrı kullanıcıyla açılabiliyor. İlk açılışta son 9 güne yayılmış 12 örnek kayıt üretiliyor; giriş ekranındaki **Örnek veriye dön** ile her şey başa alınabiliyor.
 
