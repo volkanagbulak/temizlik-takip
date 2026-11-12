@@ -345,6 +345,20 @@ export function createProcedureVersion(db, user, procedureId, form) {
   return next;
 }
 
+// Yeni malzeme tanımı. Lotu sonradan "Lot ekle" ile giriliyor.
+export function addMaterial(db, user, form) {
+  requireAdmin(user);
+  const code = form.code?.trim().toUpperCase();
+  const name = form.name?.trim();
+  if (!code || !name) fail("Malzeme kodu ve adı zorunlu.", 422);
+  // Kayıtlarda malzeme koduyla görüldüğü için kod benzersiz olmalı.
+  if (db.materials.some((m) => m.code === code)) fail(`${code} kodlu malzeme zaten var.`, 409);
+  const material = { id: `material${db.materials.length + 1}`, code, name, lots: [] };
+  db.materials.push(material);
+  addLog(db, user, null, "Malzeme eklendi", `${code} ${name}`);
+  return material;
+}
+
 // Malzemeye yeni parti/lot ekleniyor. Eski lotlar silinmiyor, kayıtlar onları göstermeye devam ediyor.
 export function addMaterialLot(db, user, materialId, form) {
   requireAdmin(user);
