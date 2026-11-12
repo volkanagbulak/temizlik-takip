@@ -85,7 +85,7 @@ export function MachinesPage() {
       <Modal title="Makine ekle" open={adding} okText="Ekle" okButtonProps={{ loading: pending }} onOk={() => form.submit()} onCancel={() => setAdding(false)}>
         <Form form={form} layout="vertical" onFinish={handleAdd}>
           <Form.Item name="lineId" label="Tesis / hat" rules={[{ required: true, message: "Hat seç" }]}>
-            <Select options={definitions.lines.map((l) => ({ value: l.id, label: l.name }))} />
+            <Select options={definitions.lines.map((l) => ({ value: l.id, label: `${definitions.facilities.find((f) => f.id === l.facilityId)?.name} / ${l.name}` }))} />
           </Form.Item>
           <Form.Item name="code" label="Makine kodu" extra="Kayıt numarasında kullanılır, benzersiz olmalı." rules={[{ required: true, whitespace: true, message: "Kod zorunlu" }]}>
             <Input placeholder="Örn. KRS04" />

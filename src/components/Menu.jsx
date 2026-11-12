@@ -5,7 +5,9 @@ import {
   BarChartOutlined,
   DashboardOutlined,
   ExperimentOutlined,
+  ApartmentOutlined,
   FileTextOutlined,
+  TeamOutlined,
   PlusCircleOutlined,
   ProfileOutlined,
   SafetyCertificateOutlined,
@@ -26,6 +28,8 @@ const ADMIN_MENU = [
   { key: "/procedures", label: "Prosedürler", icon: <ProfileOutlined /> },
   { key: "/machines", label: "Makineler", icon: <ToolOutlined /> },
   { key: "/materials", label: "Malzemeler", icon: <ExperimentOutlined /> },
+  { key: "/lines", label: "Tesis ve hatlar", icon: <ApartmentOutlined /> },
+  { key: "/users", label: "Personel", icon: <TeamOutlined /> },
   { key: "/reports", label: "Raporlar", icon: <BarChartOutlined /> },
   { key: "/audit", label: "Denetim izi", icon: <SafetyCertificateOutlined /> },
 ];

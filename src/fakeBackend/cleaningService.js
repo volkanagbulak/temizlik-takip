@@ -359,6 +359,62 @@ export function addMaterial(db, user, form) {
   return material;
 }
 
+// Tesis ve hat kodları kayıt numarasına giriyor (GEB-H1-...), bu yüzden benzersiz olmalı.
+export function addFacility(db, user, form) {
+  requireAdmin(user);
+  const code = form.code?.trim().toUpperCase();
+  const name = form.name?.trim();
+  if (!code || !name) fail("Tesis kodu ve adı zorunlu.", 422);
+  if (db.facilities.some((f) => f.code === code)) fail(`${code} kodlu tesis zaten var.`, 409);
+  const facility = { id: `facility${db.facilities.length + 1}`, code, name };
+  db.facilities.push(facility);
+  addLog(db, user, null, "Tesis eklendi", `${code} ${name}`);
+  return facility;
+}
+
+export function addLine(db, user, form) {
+  requireAdmin(user);
+  const facility = db.facilities.find((f) => f.id === form.facilityId);
+  if (!facility) fail("Tesis bulunamadı.", 422);
+  const code = form.code?.trim().toUpperCase();
+  const name = form.name?.trim();
+  if (!code || !name) fail("Hat kodu ve adı zorunlu.", 422);
+  // Aynı tesiste aynı kodlu iki hat olursa kayıt numarasından hangi hat olduğu anlaşılmaz.
+  if (db.lines.some((l) => l.facilityId === facility.id && l.code === code)) fail(`${facility.code} tesisinde ${code} kodlu hat zaten var.`, 409);
+  const line = { id: `line${db.lines.length + 1}`, facilityId: facility.id, code, name };
+  db.lines.push(line);
+  addLog(db, user, null, "Hat eklendi", `${facility.code}-${code} ${name}`);
+  return line;
+}
+
+// Personel silinmiyor, pasife alınıyor. Geçmiş kayıtlarda adı görünmeye devam ediyor.
+export function addUser(db, user, form) {
+  requireAdmin(user);
+  const name = form.name?.trim();
+  if (!name) fail("Ad soyad zorunlu.", 422);
+  if (!["operator", "admin"].includes(form.role)) fail("Rol seçilmeli.", 422);
+  const newUser = { id: `user${db.users.length + 1}`, name, role: form.role, active: true };
+  db.users.push(newUser);
+  addLog(db, user, null, "Personel eklendi", `${name} (${form.role === "admin" ? "Yönetici" : "Operatör"})`);
+  return newUser;
+}
+
+// Pasif kişi giriş yapamıyor, yeni kayıt açamıyor, adıma eklenemiyor. Açık kayıtlarını yönetici kapatıyor.
+export function setUserActive(db, user, userId, active) {
+  requireAdmin(user);
+  const target = db.users.find((u) => u.id === userId);
+  if (!target) fail("Personel bulunamadı.", 404);
+  if (target.active === active) fail("Değişiklik yok.", 422);
+  if (!active) {
+    if (target.id === user.id) fail("Kendini pasife alamazsın.", 422);
+    // Çalışan adımın süresi yarım kalmasın, önce adım duraklatılmalı.
+    const busy = findBusyRecord(db, target.id);
+    if (busy) fail(`${target.name} şu anda ${busy.no} kaydında çalışıyor, önce adım duraklatılmalı.`, 409);
+  }
+  target.active = active;
+  addLog(db, user, null, active ? "Personel aktif edildi" : "Personel pasife alındı", target.name);
+}
+
 // Malzemeye yeni parti/lot ekleniyor. Eski lotlar silinmiyor, kayıtlar onları göstermeye devam ediyor.
 export function addMaterialLot(db, user, materialId, form) {
   requireAdmin(user);
@@ -492,9 +548,11 @@ export function getAvailability(db) {
 // Adım başlamadan önce görevli herkesin boşta olduğunu kontrol eder.
 function checkPeopleFree(db, step) {
   for (const userId of step.people) {
+    const person = db.users.find((u) => u.id === userId);
+    // Pasife alınmış kişi adımda görevli kaldıysa adım onunla başlatılamaz.
+    if (!person?.active) fail(`${person?.name ?? userId} pasif, önce adımdan çıkar.`, 422);
     const busy = findBusyRecord(db, userId);
     if (busy) {
-      const person = db.users.find((u) => u.id === userId);
       fail(`${person.name} şu anda ${busy.no} kaydında çalışıyor.`, 409);
     }
   }

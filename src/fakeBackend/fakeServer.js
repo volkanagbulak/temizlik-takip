@@ -52,6 +52,10 @@ const routes = [
   { method: "post", path: "/procedures", run: (db, user, _params, body) => cleaningService.createProcedure(db, user, body) },
   { method: "post", path: "/procedures/:id/machines", run: (db, user, [id], body) => cleaningService.setProcedureMachines(db, user, id, body.machineIds) },
   { method: "post", path: "/procedures/:id/versions", run: (db, user, [id], body) => cleaningService.createProcedureVersion(db, user, id, body) },
+  { method: "post", path: "/facilities", run: (db, user, _params, body) => cleaningService.addFacility(db, user, body) },
+  { method: "post", path: "/lines", run: (db, user, _params, body) => cleaningService.addLine(db, user, body) },
+  { method: "post", path: "/users", run: (db, user, _params, body) => cleaningService.addUser(db, user, body) },
+  { method: "post", path: "/users/:id/active", run: (db, user, [id], body) => cleaningService.setUserActive(db, user, id, body.active) },
   { method: "post", path: "/materials", run: (db, user, _params, body) => cleaningService.addMaterial(db, user, body) },
   { method: "post", path: "/materials/:id/lots", run: (db, user, [id], body) => cleaningService.addMaterialLot(db, user, id, body) },
 

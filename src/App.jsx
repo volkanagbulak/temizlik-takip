@@ -5,6 +5,7 @@ import { AppLayout } from "./components/AppLayout";
 import { AdminRoute } from "./components/AdminRoute";
 import { AuditPage } from "./pages/AuditPage";
 import { ControlPage } from "./pages/ControlPage";
+import { LinesPage } from "./pages/LinesPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MachinesPage } from "./pages/MachinesPage";
 import { MaterialsPage } from "./pages/MaterialsPage";
@@ -17,6 +18,7 @@ import { RecordDetailPage } from "./pages/RecordDetailPage";
 import { RecordsPage } from "./pages/RecordsPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { RunPage } from "./pages/RunPage";
+import { UsersPage } from "./pages/UsersPage";
 
 const SESSION_KEY = "currentUser";
 
@@ -64,6 +66,8 @@ export default function App() {
           <Route path="/procedures/:procedureId" element={<ProcedureDetailPage />} />
           <Route path="/machines" element={<MachinesPage />} />
           <Route path="/materials" element={<MaterialsPage />} />
+          <Route path="/lines" element={<LinesPage />} />
+          <Route path="/users" element={<UsersPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/audit" element={<AuditPage />} />
         </Route>
